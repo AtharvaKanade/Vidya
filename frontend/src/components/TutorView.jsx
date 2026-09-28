@@ -11,72 +11,11 @@ import {
   Lightbulb,
   TrendUp,
   TrendDown,
-  Info
+  Info,
+  SlidersHorizontal,
+  CaretDown,
+  CaretUp
 } from '@phosphor-icons/react';
-
-// Built-in starter question bank for immediate interactive demonstration
-const SAMPLE_QUESTIONS = {
-  nn_perceptron: {
-    id: 'q_nn_percep_01',
-    question: 'What is the mathematical output formulation of a standard single binary perceptron?',
-    options: [
-      'f(x) = softmax(W * x + b)',
-      'f(x) = step(w · x + b) where step(z) = 1 if z >= 0 else 0',
-      'f(x) = 1 / (1 + exp(-x))',
-      'f(x) = max(0, x)'
-    ],
-    answer_index: 1,
-    explanation_hint: 'The classic Rosenblatt perceptron computes a weighted sum with bias and applies a step threshold function.'
-  },
-  nn_activation: {
-    id: 'q_nn_act_01',
-    question: 'Why are non-linear activation functions essential in deep neural networks?',
-    options: [
-      'They prevent gradients from ever becoming zero during backpropagation.',
-      'Without them, stacking multiple linear layers collapses into a single equivalent linear transformation.',
-      'They reduce the total number of trainable parameters in each layer.',
-      'They guarantee convergence to the global minimum of the loss function.'
-    ],
-    answer_index: 1,
-    explanation_hint: 'Composition of linear maps is strictly linear: W2*(W1*x) = (W2*W1)*x. Non-linearities allow networks to approximate arbitrary functions.'
-  },
-  nn_linear_algebra: {
-    id: 'q_nn_la_01',
-    question: 'In a matrix multiplication between input matrix X (shape 32x128) and weight matrix W (shape 128x64), what is the resulting tensor dimension?',
-    options: [
-      '128 x 128',
-      '32 x 64',
-      '64 x 32',
-      '32 x 128'
-    ],
-    answer_index: 1,
-    explanation_hint: '(M x K) multiplied by (K x N) yields a matrix of shape (M x N).'
-  },
-  tr_tokenization: {
-    id: 'q_tr_tok_01',
-    question: 'What primary problem does subword tokenization (such as Byte-Pair Encoding) solve compared to whole-word tokenization?',
-    options: [
-      'It eliminates the need for positional encodings in self-attention.',
-      'It manages Out-Of-Vocabulary (OOV) tokens by decomposing unknown words into frequent subword units.',
-      'It converts text sequences directly into dense continuous vector embeddings without vocabulary lookup.',
-      'It forces all vocabulary tokens to have identical character length.'
-    ],
-    answer_index: 1,
-    explanation_hint: 'BPE builds a compact vocabulary where rare or novel words are split into known constituent subwords.'
-  },
-  rag_prompt_basics: {
-    id: 'q_rag_prompt_01',
-    question: 'In a structured prompt template for a retrieval-augmented assistant, what is the role of explicit ground truth delimiters (e.g., <context>...</context>)?',
-    options: [
-      'To increase temperature sampling randomness for higher factual diversity.',
-      'To clearly isolate external factual context from user instructions, reducing prompt injection and hallucination.',
-      'To automatically index the prompt into an in-memory HNSW vector database.',
-      'To bypass tokenization length constraints.'
-    ],
-    answer_index: 1,
-    explanation_hint: 'Delimiters bound untrusted retrieved text and clarify instructions from reference context.'
-  }
-};
 
 export default function TutorView({
   currentConcept,
@@ -90,6 +29,7 @@ export default function TutorView({
   const [lastResult, setLastResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [startTime, setStartTime] = useState(Date.now());
+  const [showMathDetails, setShowMathDetails] = useState(false);
 
   useEffect(() => {
     setSelectedOption(null);
@@ -102,23 +42,22 @@ export default function TutorView({
     return (
       <div className="max-w-3xl mx-auto px-4 pt-32 text-center text-zinc-400">
         <Brain size={32} className="mx-auto text-emerald-400 animate-spin mb-4" />
-        <p>Loading next optimal concept from selector...</p>
+        <p className="text-sm">Finding the best next question for you...</p>
       </div>
     );
   }
 
-  // Get active question item
-  const questionItem = currentConcept.question || SAMPLE_QUESTIONS[currentConcept.concept_id] || {
+  const questionItem = currentConcept.question || {
     id: `q_${currentConcept.concept_id}_gen`,
-    question: `Which fundamental principle governs the mechanics and application of '${currentConcept.concept_name}' in modern AI systems?`,
+    question: `What is the core idea behind '${currentConcept.concept_name}' in modern AI systems?`,
     options: [
-      `It enables parametric transformation and contextual representations for ${currentConcept.concept_name}.`,
-      `It acts as an unconstrained heuristic without mathematical bounds.`,
-      `It replaces the loss function completely during optimization.`,
+      `It enables parametric transformation and structured learning for ${currentConcept.concept_name}.`,
+      `It is an unconstrained heuristic without mathematical bounds.`,
+      `It completely bypasses optimization during training.`,
       `It is only applicable in 1-dimensional discrete spaces.`
     ],
     answer_index: 0,
-    explanation_hint: `Reflect on the formal definition and role of ${currentConcept.concept_name}.`
+    explanation_hint: `Think about how ${currentConcept.concept_name} helps neural models represent or process data.`
   };
 
   const handleOptionSelect = (idx) => {
@@ -144,11 +83,11 @@ export default function TutorView({
       setLastResult(result);
       setIsSubmitted(true);
 
-      // Trigger confetti if concept transitioned to mastered!
+      // Trigger celebration if mastered!
       if (result.p_known_after >= 0.85 && result.p_known_before < 0.85) {
         confetti({
-          particleCount: 80,
-          spread: 70,
+          particleCount: 90,
+          spread: 80,
           origin: { y: 0.6 }
         });
       }
@@ -161,92 +100,122 @@ export default function TutorView({
 
   const pPercent = Math.round(currentConcept.p_known * 100);
 
+  // Friendly Stage Label
+  let stageLabel = 'Learning the Basics';
+  let stageBadgeColor = 'bg-zinc-800 text-zinc-300 border-zinc-700';
+  if (currentConcept.p_known >= 0.85) {
+    stageLabel = 'Mastered! 🏆';
+    stageBadgeColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+  } else if (currentConcept.p_known >= 0.40) {
+    stageLabel = 'Gaining Confidence ⚡';
+    stageBadgeColor = 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+  }
+
+  // Difficulty label
+  const difficultyNames = { 1: 'Beginner', 2: 'Intermediate', 3: 'Advanced' };
+
   return (
     <div className="max-w-3xl mx-auto px-4 pt-28 pb-20">
       {/* Concept Status Card (Double-Bezel) */}
       <div className="double-bezel p-1.5 rounded-[1.75rem] mb-6">
         <div className="double-bezel-inner p-6 rounded-[1.4rem]">
           {/* Header Row */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Active Concept
+              <span className={`text-xs font-medium px-3 py-1 rounded-full border ${stageBadgeColor}`}>
+                {stageLabel}
               </span>
-              <span className="text-xs text-zinc-400 font-mono">
-                Topic: <strong className="text-zinc-200 uppercase">{currentConcept.topic}</strong>
+              <span className="text-xs text-zinc-400 capitalize">
+                Track: <strong className="text-zinc-200 uppercase">{currentConcept.topic}</strong>
               </span>
             </div>
 
-            {/* Difficulty Indicators */}
-            <div className="flex items-center gap-1.5 bg-white/[0.03] px-3 py-1 rounded-full border border-white/5 text-xs text-zinc-400">
-              <span className="text-[10px] font-mono uppercase">Difficulty:</span>
-              <div className="flex gap-1">
-                {[1, 2, 3].map((lvl) => (
-                  <span
-                    key={lvl}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      lvl <= currentConcept.difficulty ? 'bg-amber-400' : 'bg-zinc-700'
-                    }`}
-                  />
-                ))}
-              </div>
+            {/* Difficulty Badge */}
+            <div className="flex items-center gap-2 bg-white/[0.04] px-3 py-1 rounded-full border border-white/5 text-xs text-zinc-300">
+              <span className="text-zinc-400">Level:</span>
+              <span className="font-semibold text-white">
+                {difficultyNames[currentConcept.difficulty] || 'Standard'}
+              </span>
             </div>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-4">
             {currentConcept.concept_name}
           </h2>
 
-          {/* Probabilistic Mastery Meter */}
-          <div className="space-y-2 pt-2">
-            <div className="flex justify-between items-center text-xs font-mono">
-              <span className="text-zinc-400 flex items-center gap-1.5">
-                <Brain size={14} className="text-emerald-400" />
-                <span>BKT Posterior Mastery ($p_{'{known}'}$):</span>
+          {/* Friendly Mastery Progress Bar */}
+          <div className="space-y-2 pt-1">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-zinc-300 font-medium">
+                Your Mastery Level:
               </span>
-              <span className="font-semibold text-white">
-                {currentConcept.p_known.toFixed(4)} ({currentConcept.mastery_level})
+              <span className="font-bold text-white text-sm">
+                {pPercent}%
               </span>
             </div>
-            <div className="w-full h-2.5 rounded-full bg-zinc-900 border border-white/5 overflow-hidden p-0.5">
+            <div className="w-full h-3 rounded-full bg-zinc-900 border border-white/5 overflow-hidden p-0.5">
               <div
                 className={`h-full rounded-full transition-all duration-700 ${
                   currentConcept.p_known >= 0.85
-                    ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.5)]'
+                    ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.6)]'
                     : currentConcept.p_known >= 0.40
                     ? 'bg-amber-400'
-                    : 'bg-zinc-600'
+                    : 'bg-indigo-400'
                 }`}
                 style={{ width: `${Math.max(8, pPercent)}%` }}
               />
             </div>
           </div>
+
+          {/* Optional Math Inspection Toggle */}
+          <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs">
+            <button
+              onClick={() => setShowMathDetails(!showMathDetails)}
+              className="text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 transition-colors font-mono text-[11px]"
+            >
+              <span>{showMathDetails ? 'Hide BKT Formula Details' : 'Show Bayesian Engine Math ($p_{known}$)'}</span>
+              {showMathDetails ? <CaretUp size={12} /> : <CaretDown size={12} />}
+            </button>
+
+            {showMathDetails && (
+              <span className="font-mono text-[11px] text-emerald-400">
+                posterior p_known = {currentConcept.p_known.toFixed(4)}
+              </span>
+            )}
+          </div>
+
+          {showMathDetails && (
+            <div className="mt-3 p-3 rounded-xl bg-black/40 border border-white/5 text-[11px] font-mono text-zinc-300 space-y-1">
+              <p>• Mathematical engine updates $p_{'{known}'}$ after each response without guessing.</p>
+              <p>• Correct answer increases mastery; mistake lowers it and schedules intuitive re-explanation.</p>
+              <p>• Threshold to master node: &ge; 0.85 (85%).</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Re-explain Banner (triggers on 2 consecutive wrong attempts) */}
+      {/* Helpful Hint / Re-explanation Banner */}
       {lastResult?.re_explain && (
-        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-3 mb-6 animate-pulse-subtle">
-          <Lightbulb size={20} className="text-amber-400 shrink-0 mt-0.5" weight="duotone" />
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-sm flex items-start gap-3 mb-6 animate-pulse-subtle">
+          <Lightbulb size={22} className="text-amber-400 shrink-0 mt-0.5" weight="duotone" />
           <div>
-            <strong className="font-semibold block mb-0.5">Pedagogical Re-Explanation Triggered:</strong>
-            Vidya detected struggle on this node. Switching modal explanation style to 
-            <span className="font-mono underline ml-1 font-semibold">{lastResult.explanation_style || 'Analogy & Worked Example'}</span>.
+            <strong className="font-semibold block mb-0.5">Let's look at this another way:</strong>
+            Vidya noticed this concept was tricky. For the next step, we'll break it down using a simple real-world analogy.
           </div>
         </div>
       )}
 
-      {/* Interactive Question Card */}
+      {/* Question Card */}
       <div className="double-bezel p-1.5 rounded-[1.75rem] mb-6">
         <div className="double-bezel-inner p-6 sm:p-8 rounded-[1.4rem]">
           <div className="flex items-center gap-2 mb-4">
-            <Sparkle size={16} className="text-indigo-400" />
-            <span className="text-[11px] uppercase tracking-wider font-mono text-indigo-300">
-              Practice Question
+            <Sparkle size={16} className="text-emerald-400" />
+            <span className="text-xs uppercase tracking-wider font-semibold text-emerald-300">
+              Quick Practice
             </span>
           </div>
 
-          <h3 className="text-base sm:text-lg font-medium text-zinc-100 leading-relaxed mb-6">
+          <h3 className="text-base sm:text-lg font-semibold text-white leading-relaxed mb-6">
             {questionItem.question}
           </h3>
 
@@ -257,15 +226,15 @@ export default function TutorView({
               const isCorrectAnswer = isSubmitted && idx === questionItem.answer_index;
               const isWrongSelected = isSubmitted && isSelected && !isCorrectAnswer;
 
-              let cardStyle = 'bg-white/[0.02] border-white/10 hover:border-white/20 hover:bg-white/[0.04] text-zinc-300';
+              let cardStyle = 'bg-white/[0.02] border-white/10 hover:border-white/25 hover:bg-white/[0.04] text-zinc-200';
               if (isSelected && !isSubmitted) {
-                cardStyle = 'bg-indigo-500/10 border-indigo-500/50 text-white shadow-lg shadow-indigo-500/10';
+                cardStyle = 'bg-indigo-500/15 border-indigo-400 text-white shadow-lg shadow-indigo-500/10';
               }
               if (isCorrectAnswer) {
-                cardStyle = 'bg-emerald-500/15 border-emerald-500/60 text-emerald-200';
+                cardStyle = 'bg-emerald-500/20 border-emerald-400 text-emerald-100 font-medium';
               }
               if (isWrongSelected) {
-                cardStyle = 'bg-rose-500/15 border-rose-500/60 text-rose-200';
+                cardStyle = 'bg-rose-500/20 border-rose-400 text-rose-100';
               }
 
               return (
@@ -275,8 +244,10 @@ export default function TutorView({
                   onClick={() => handleOptionSelect(idx)}
                   className={`w-full text-left p-4 rounded-2xl border transition-all text-xs sm:text-sm flex items-start gap-3.5 ${cardStyle}`}
                 >
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-xs shrink-0 border ${
-                    isSelected ? 'border-indigo-400 bg-indigo-500/20 text-indigo-300' : 'border-white/10 bg-white/5 text-zinc-400'
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${
+                    isSelected 
+                      ? 'border-indigo-400 bg-indigo-500/30 text-white' 
+                      : 'border-white/15 bg-white/5 text-zinc-400'
                   }`}>
                     {String.fromCharCode(65 + idx)}
                   </span>
@@ -286,63 +257,60 @@ export default function TutorView({
             })}
           </div>
 
-          {/* Action Bar */}
+          {/* Action Button Area */}
           {!isSubmitted ? (
             <button
               disabled={selectedOption === null || submitting}
               onClick={handleSubmitAnswer}
-              className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-full font-semibold text-sm transition-all shadow-xl ${
+              className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-full font-bold text-sm transition-all shadow-xl ${
                 selectedOption !== null && !submitting
-                  ? 'bg-white text-zinc-950 hover:bg-zinc-200 active:scale-[0.98]'
+                  ? 'bg-white text-zinc-950 hover:bg-emerald-300 active:scale-[0.98]'
                   : 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
               }`}
             >
-              <span>{submitting ? 'Updating BKT Engine...' : 'Submit Answer'}</span>
+              <span>{submitting ? 'Checking Your Answer...' : 'Submit Answer'}</span>
               <ArrowRight size={16} weight="bold" />
             </button>
           ) : (
             <div className="space-y-4">
               {/* Result Feedback Banner */}
-              <div className={`p-4 rounded-2xl border flex items-start gap-3 text-xs leading-relaxed ${
+              <div className={`p-5 rounded-2xl border flex items-start gap-3.5 text-xs sm:text-sm leading-relaxed ${
                 lastResult?.correct
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
                   : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
               }`}>
                 {lastResult?.correct ? (
-                  <CheckCircle size={20} className="text-emerald-400 shrink-0 mt-0.5" weight="duotone" />
+                  <CheckCircle size={22} className="text-emerald-400 shrink-0 mt-0.5" weight="fill" />
                 ) : (
-                  <XCircle size={20} className="text-rose-400 shrink-0 mt-0.5" weight="duotone" />
+                  <XCircle size={22} className="text-rose-400 shrink-0 mt-0.5" weight="fill" />
                 )}
-                <div className="space-y-1">
-                  <div className="font-semibold flex items-center gap-2">
-                    <span>{lastResult?.correct ? 'Correct Answer!' : 'Incorrect.'}</span>
-                    <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-black/40 border border-white/10 flex items-center gap-1">
-                      {lastResult?.correct ? <TrendUp size={12} /> : <TrendDown size={12} />}
-                      p_known: {lastResult?.p_known_before.toFixed(3)} → {lastResult?.p_known_after.toFixed(3)}
+                <div className="space-y-1.5 flex-1">
+                  <div className="font-bold text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>{lastResult?.correct ? 'Great job! That is correct.' : 'Not quite right — here is why:'}</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-md bg-black/40 border border-white/10 font-normal">
+                      Mastery: {Math.round(lastResult?.p_known_before * 100)}% → {Math.round(lastResult?.p_known_after * 100)}%
                     </span>
                   </div>
-                  <p className="text-zinc-300">{questionItem.explanation_hint}</p>
+                  <p className="text-zinc-300 leading-relaxed">{questionItem.explanation_hint}</p>
                 </div>
               </div>
 
-              {/* Next Button */}
-              <div className="flex gap-3">
-                <button
-                  disabled={loadingNext}
-                  onClick={async () => {
-                    setSelectedOption(null);
-                    setIsSubmitted(false);
-                    setLastResult(null);
-                    if (onNextQuestion) {
-                      await onNextQuestion();
-                    }
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-full bg-white text-zinc-950 hover:bg-zinc-200 font-semibold text-sm transition-all active:scale-[0.98] shadow-xl"
-                >
-                  <span>{loadingNext ? 'Loading Next Question...' : 'Continue Learning'}</span>
-                  <ArrowRight size={16} weight="bold" />
-                </button>
-              </div>
+              {/* Continue Learning Button */}
+              <button
+                disabled={loadingNext}
+                onClick={async () => {
+                  setSelectedOption(null);
+                  setIsSubmitted(false);
+                  setLastResult(null);
+                  if (onNextQuestion) {
+                    await onNextQuestion();
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-full bg-white hover:bg-emerald-300 text-zinc-950 font-bold text-sm transition-all active:scale-[0.98] shadow-2xl"
+              >
+                <span>{loadingNext ? 'Loading Next Topic...' : 'Continue to Next Question'}</span>
+                <ArrowRight size={18} weight="bold" />
+              </button>
             </div>
           )}
         </div>
