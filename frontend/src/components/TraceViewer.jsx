@@ -108,7 +108,7 @@ export default function TraceViewer({ traceData, onRefresh }) {
                             <span>Concept: <code className="text-zinc-200">{payload.concept_id}</code></span>
                             <span className="flex items-center gap-1">
                               {payload.correct ? <TrendUp size={12} className="text-emerald-400" /> : <TrendDown size={12} className="text-rose-400" />}
-                              p_known: {payload.p_known_before} → {payload.p_known_after}
+                              Score: {Math.round((payload.p_known_before || 0) * 100)}% → {Math.round((payload.p_known_after || 0) * 100)}%
                             </span>
                             {payload.latency_ms > 0 && (
                               <span className="text-zinc-500">

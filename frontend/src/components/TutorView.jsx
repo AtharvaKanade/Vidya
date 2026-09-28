@@ -167,28 +167,28 @@ export default function TutorView({
             </div>
           </div>
 
-          {/* Optional Math Inspection Toggle */}
+          {/* Friendly Score Guide Toggle */}
           <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs">
             <button
               onClick={() => setShowMathDetails(!showMathDetails)}
-              className="text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 transition-colors font-mono text-[11px]"
+              className="text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 transition-colors text-xs font-medium"
             >
-              <span>{showMathDetails ? 'Hide BKT Formula Details' : 'Show Bayesian Engine Math ($p_{known}$)'}</span>
+              <span>{showMathDetails ? 'Hide Guide' : 'How does your score work?'}</span>
               {showMathDetails ? <CaretUp size={12} /> : <CaretDown size={12} />}
             </button>
 
             {showMathDetails && (
-              <span className="font-mono text-[11px] text-emerald-400">
-                posterior p_known = {currentConcept.p_known.toFixed(4)}
+              <span className="text-xs text-emerald-400 font-medium">
+                Goal: Reach 85% to Master
               </span>
             )}
           </div>
 
           {showMathDetails && (
-            <div className="mt-3 p-3 rounded-xl bg-black/40 border border-white/5 text-[11px] font-mono text-zinc-300 space-y-1">
-              <p>• Mathematical engine updates $p_{'{known}'}$ after each response without guessing.</p>
-              <p>• Correct answer increases mastery; mistake lowers it and schedules intuitive re-explanation.</p>
-              <p>• Threshold to master node: &ge; 0.85 (85%).</p>
+            <div className="mt-3 p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-zinc-300 space-y-1.5">
+              <p>• <strong>Correct answers</strong> boost your understanding score.</p>
+              <p>• <strong>Tricky questions</strong> help Vidya know where to give you helpful hints and analogies.</p>
+              <p>• Once you reach <strong>85%</strong>, this topic is mastered and unlocks the next lesson!</p>
             </div>
           )}
         </div>
