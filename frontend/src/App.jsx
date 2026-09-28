@@ -12,7 +12,7 @@ import {
   getMastery, 
   getTraces 
 } from './api';
-import { WarningCircle, ArrowClockwise } from '@phosphor-icons/react';
+import { WarningCircle, X } from '@phosphor-icons/react';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -51,7 +51,7 @@ export default function App() {
       setMasteryData(masteryRes);
       setTraceData(traceRes);
     } catch (err) {
-      console.error("Failed refreshing session data", err);
+      console.error('Failed refreshing session data', err);
       setError(err.message);
     }
   };
@@ -66,7 +66,7 @@ export default function App() {
       await refreshSessionData(res.session_id);
       setActiveTab('tutor');
     } catch (err) {
-      setError(`Failed to connect to backend: ${err.message}. Ensure backend server is running at http://localhost:8000`);
+      setError(`Connection failed — make sure the backend is running at http://localhost:8000`);
     } finally {
       setLoading(false);
     }
@@ -106,7 +106,7 @@ export default function App() {
       const nextRes = await getNextConcept(session.session_id);
       setCurrentConcept(nextRes);
     } catch (err) {
-      console.error("Failed fetching next concept", err);
+      console.error('Failed fetching next concept', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -114,8 +114,7 @@ export default function App() {
   };
 
   const handleSelfRatingSubmit = async (conceptId, rating) => {
-    // Blends self-rating into mastery on Day 2
-    console.log(`Calibrated self-rating for ${conceptId}: ${rating}`);
+    console.log(`Self-rating for ${conceptId}: ${rating}`);
     if (session) {
       await refreshSessionData(session.session_id);
     }
@@ -127,10 +126,16 @@ export default function App() {
     : 0;
 
   return (
-    <div className="min-h-[100dvh] bg-[#070709] text-zinc-100 relative selection:bg-emerald-500/20 selection:text-white">
-      {/* Ambient Lighting Atmosphere */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] glow-orb-emerald pointer-events-none z-0" />
-      <div className="fixed bottom-0 right-0 w-[600px] h-[400px] glow-orb-indigo pointer-events-none z-0" />
+    <div className="grain-root min-h-[100dvh] relative" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      {/* Ambient glow — emerald top & indigo bottom-right */}
+      <div
+        className="glow-emerald fixed top-0 left-1/2 -translate-x-1/2 pointer-events-none z-0"
+        style={{ width: '900px', height: '480px' }}
+      />
+      <div
+        className="glow-indigo fixed -bottom-32 -right-32 pointer-events-none z-0"
+        style={{ width: '600px', height: '600px' }}
+      />
 
       {/* Navigation */}
       <Navbar
@@ -143,19 +148,28 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="relative z-10">
-        {/* Error Notification Toast */}
+        {/* Error notification */}
         {error && (
-          <div className="max-w-2xl mx-auto px-4 pt-24">
-            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs flex items-center justify-between gap-3 shadow-2xl">
-              <div className="flex items-center gap-2">
-                <WarningCircle size={18} className="text-rose-400 shrink-0" />
+          <div className="max-w-2xl mx-auto px-4 pt-24 animate-fade-in">
+            <div
+              className="p-4 rounded-2xl flex items-center justify-between gap-3"
+              style={{
+                background: 'var(--red-dim)',
+                border: '1px solid var(--red-border)',
+                color: '#fca5a5',
+              }}
+            >
+              <div className="flex items-center gap-2.5 text-sm">
+                <WarningCircle size={18} style={{ color: 'var(--red)', flexShrink: 0 }} />
                 <span>{error}</span>
               </div>
               <button
                 onClick={() => setError(null)}
-                className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-[11px] font-mono transition-colors"
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ background: 'rgba(248,113,113,0.15)' }}
+                aria-label="Dismiss error"
               >
-                Dismiss
+                <X size={14} />
               </button>
             </div>
           </div>
@@ -191,7 +205,7 @@ export default function App() {
         ) : null}
       </main>
 
-      {/* Human Calibration Approval Modal */}
+      {/* Self-rating modal */}
       <SelfRatingModal
         isOpen={selfRatingModalOpen}
         concept={selfRatingConcept}

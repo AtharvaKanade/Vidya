@@ -1,100 +1,146 @@
 import React from 'react';
-import { 
-  Brain, 
-  TreeStructure, 
-  ClockCounterClockwise, 
-  Sparkle,
-  ArrowsCounterClockwise,
-  CheckCircle,
-  Lightning
-} from '@phosphor-icons/react';
+import { Brain, Lightning, TreeStructure, ClockCounterClockwise, ArrowsCounterClockwise } from '@phosphor-icons/react';
 
 export default function Navbar({ activeTab, setActiveTab, session, onResetSession, overallMastery }) {
+  const tabs = [
+    { id: 'tutor',   label: 'Practice',     icon: Lightning },
+    { id: 'mastery', label: 'My Progress',  icon: TreeStructure },
+    { id: 'trace',   label: 'History',      icon: ClockCounterClockwise },
+  ];
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex justify-center px-4 pt-4 pointer-events-none">
-      <div className="pointer-events-auto flex items-center justify-between gap-3 md:gap-8 px-4 py-2.5 rounded-full bg-zinc-950/85 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/80 max-w-4xl w-full">
+      <div
+        className="pointer-events-auto flex items-center justify-between gap-4 px-3.5 py-2 rounded-full max-w-4xl w-full"
+        style={{
+          background: 'rgba(14, 14, 18, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.06) inset',
+        }}
+      >
         {/* Brand */}
-        <div 
+        <button
           onClick={onResetSession}
-          className="flex items-center gap-2.5 pl-2 cursor-pointer group"
+          className="flex items-center gap-2.5 pl-1 group"
+          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+          aria-label="Go to home"
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500/20 to-indigo-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
+            style={{
+              background: 'rgba(52, 211, 153, 0.12)',
+              border: '1px solid rgba(52, 211, 153, 0.35)',
+              color: 'var(--accent)',
+            }}
+          >
             <Brain size={18} weight="duotone" />
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-              Vidya <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">AI Tutor</span>
-            </span>
-          </div>
-        </div>
+          <span style={{ fontSize: '0.925rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            Vidya
+          </span>
+          <span
+            className="hidden sm:inline"
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              padding: '0.15rem 0.5rem',
+              borderRadius: '999px',
+              background: 'rgba(52, 211, 153, 0.1)',
+              color: 'var(--accent-text)',
+              border: '1px solid rgba(52, 211, 153, 0.25)',
+            }}
+          >
+            AI Tutor
+          </span>
+        </button>
 
-        {/* Center Tabs (when session active) */}
+        {/* Center tabs — only visible when a session is active */}
         {session ? (
-          <nav className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-full border border-white/5">
-            <button
-              onClick={() => setActiveTab('tutor')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                activeTab === 'tutor'
-                  ? 'bg-white text-zinc-950 font-semibold shadow-md'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Lightning size={14} weight={activeTab === 'tutor' ? 'fill' : 'regular'} />
-              <span>Learn & Practice</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('mastery')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                activeTab === 'mastery'
-                  ? 'bg-white text-zinc-950 font-semibold shadow-md'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <TreeStructure size={14} weight={activeTab === 'mastery' ? 'fill' : 'regular'} />
-              <span>Knowledge Map</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('trace')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                activeTab === 'trace'
-                  ? 'bg-white text-zinc-950 font-semibold shadow-md'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <ClockCounterClockwise size={14} weight={activeTab === 'trace' ? 'fill' : 'regular'} />
-              <span>Activity Log</span>
-            </button>
+          <nav
+            className="flex items-center gap-1 rounded-full p-1"
+            style={{ background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.05)' }}
+            aria-label="Main navigation"
+          >
+            {tabs.map(({ id, label, icon: Icon }) => {
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className="flex items-center gap-1.5 rounded-full transition-all"
+                  style={{
+                    padding: '0.375rem 0.875rem',
+                    fontSize: '0.75rem',
+                    fontWeight: active ? 700 : 500,
+                    background: active ? 'linear-gradient(135deg, #34d399, #10b981)' : 'transparent',
+                    color: active ? '#052e16' : 'var(--text-secondary)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: active ? '0 2px 8px rgba(52, 211, 153, 0.35)' : 'none',
+                  }}
+                >
+                  <Icon size={13} weight={active ? 'fill' : 'regular'} />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </nav>
         ) : (
-          <div className="text-xs text-zinc-400 hidden sm:flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Personalized AI Learning</span>
+          <div className="hidden sm:flex items-center gap-2" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <span
+              className="w-1.5 h-1.5 rounded-full animate-pulse-glow"
+              style={{ background: 'var(--accent)', display: 'inline-block' }}
+            />
+            Adapts in real time
           </div>
         )}
 
-        {/* Right Action */}
+        {/* Right side */}
         <div className="flex items-center gap-3 pr-1">
           {session ? (
             <div className="flex items-center gap-2.5">
-              <div className="hidden sm:flex flex-col items-end text-right">
-                <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-medium">Mastery</span>
-                <span className="text-xs font-bold text-emerald-400">
-                  {overallMastery}% Complete
+              <div className="hidden sm:flex flex-col items-end">
+                <span className="label-caps">Overall</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-text)' }}>
+                  {overallMastery}% mastered
                 </span>
               </div>
               <button
                 onClick={onResetSession}
-                title="Change Topic or Start New Session"
-                className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 transition-all text-xs flex items-center gap-1 group"
+                title="Start a new session"
+                className="group"
+                style={{
+                  padding: '0.45rem',
+                  borderRadius: '999px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 180ms ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                  e.currentTarget.style.color = 'var(--text-muted)';
+                }}
+                aria-label="Start new session"
               >
-                <ArrowsCounterClockwise size={14} className="group-hover:rotate-180 transition-transform duration-500" />
+                <ArrowsCounterClockwise size={14} />
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium">
-              Ready to Learn
+            <div
+              className="badge badge-emerald"
+              style={{ fontSize: '0.6875rem' }}
+            >
+              Ready to learn
             </div>
           )}
         </div>
