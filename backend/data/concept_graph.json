@@ -1,0 +1,344 @@
+{
+  "_comment": "STATUS: DRAFT - NEEDS HUMAN REVIEW before final eval scoring.",
+  "topics": [
+    {
+      "id": "nn",
+      "name": "Neural networks basics",
+      "description": "Foundations of artificial neural networks, activation, backpropagation, and architectures."
+    },
+    {
+      "id": "tr",
+      "name": "Transformers and attention",
+      "description": "Sequence modeling, self-attention mechanisms, encoder-decoder architectures, and pre-training."
+    },
+    {
+      "id": "rag",
+      "name": "Prompting and RAG basics",
+      "description": "Prompt engineering strategies, dense vector embeddings, vector databases, and retrieval augmentation."
+    }
+  ],
+  "concepts": [
+    {
+      "id": "nn_perceptron",
+      "topic": "nn",
+      "name": "Perceptron",
+      "description": "The fundamental linear unit combining weighted inputs, bias, and a threshold activation.",
+      "prereqs": [],
+      "importance": 1.5
+    },
+    {
+      "id": "nn_linear_algebra",
+      "topic": "nn",
+      "name": "Vectors and matrices for ML",
+      "description": "Dot products, matrix multiplication, vector spaces, and dimensions in neural networks.",
+      "prereqs": [],
+      "importance": 1.5
+    },
+    {
+      "id": "nn_activation",
+      "topic": "nn",
+      "name": "Activation functions",
+      "description": "Non-linear mappings (Sigmoid, ReLU, GELU, Tanh) enabling multi-layer feature representations.",
+      "prereqs": ["nn_perceptron"],
+      "importance": 1.4
+    },
+    {
+      "id": "nn_loss",
+      "topic": "nn",
+      "name": "Loss functions",
+      "description": "Objective functions including MSE, Binary Cross-Entropy, and Categorical Cross-Entropy.",
+      "prereqs": ["nn_perceptron"],
+      "importance": 1.4
+    },
+    {
+      "id": "nn_gradient_descent",
+      "topic": "nn",
+      "name": "Gradient descent",
+      "description": "Iterative optimization via loss gradients, learning rates, and step updates.",
+      "prereqs": ["nn_loss"],
+      "importance": 1.5
+    },
+    {
+      "id": "nn_backprop",
+      "topic": "nn",
+      "name": "Backpropagation",
+      "description": "Application of the multivariable calculus chain rule to compute gradients across layered graphs.",
+      "prereqs": ["nn_gradient_descent", "nn_activation"],
+      "importance": 1.5
+    },
+    {
+      "id": "nn_layers",
+      "topic": "nn",
+      "name": "Hidden layers and network depth",
+      "description": "Stacking dense layers, representation learning, and expressivity vs parameter count.",
+      "prereqs": ["nn_activation"],
+      "importance": 1.2
+    },
+    {
+      "id": "nn_overfitting",
+      "topic": "nn",
+      "name": "Overfitting and generalization",
+      "description": "Train vs validation divergence, bias-variance tradeoff, and model capacity.",
+      "prereqs": ["nn_loss", "nn_layers"],
+      "importance": 1.3
+    },
+    {
+      "id": "nn_dropout",
+      "topic": "nn",
+      "name": "Dropout",
+      "description": "Regularization by randomly zeroing activations during forward passes in training.",
+      "prereqs": ["nn_overfitting"],
+      "importance": 1.0
+    },
+    {
+      "id": "nn_batch_norm",
+      "topic": "nn",
+      "name": "Batch normalization",
+      "description": "Normalizing layer inputs by mini-batch mean and variance to stabilize training.",
+      "prereqs": ["nn_layers"],
+      "importance": 1.1
+    },
+    {
+      "id": "nn_cnn_basics",
+      "topic": "nn",
+      "name": "Convolutional layers",
+      "description": "Spatial weight sharing, convolutional kernels, stride, padding, and feature maps.",
+      "prereqs": ["nn_layers"],
+      "importance": 1.0
+    },
+    {
+      "id": "nn_pooling",
+      "topic": "nn",
+      "name": "Pooling and receptive field",
+      "description": "Max-pooling, average-pooling, spatial dimension downsampling, and receptive fields.",
+      "prereqs": ["nn_cnn_basics"],
+      "importance": 1.0
+    },
+    {
+      "id": "nn_training_loop",
+      "topic": "nn",
+      "name": "Training loop and mini-batches",
+      "description": "Forward pass, loss computation, backward pass, optimizer step, and epoch tracking.",
+      "prereqs": ["nn_backprop"],
+      "importance": 1.2
+    },
+    {
+      "id": "nn_optimizers",
+      "topic": "nn",
+      "name": "Optimizers (SGD, Adam)",
+      "description": "Momentum, adaptive learning rates, RMSProp, and Adam optimization mechanics.",
+      "prereqs": ["nn_gradient_descent"],
+      "importance": 1.2
+    },
+
+    {
+      "id": "tr_tokenization",
+      "topic": "tr",
+      "name": "Tokenization",
+      "description": "Subword splitting algorithms including BPE, WordPiece, and SentencePiece.",
+      "prereqs": [],
+      "importance": 1.4
+    },
+    {
+      "id": "tr_embedding",
+      "topic": "tr",
+      "name": "Token embeddings",
+      "description": "Mapping discrete token IDs into continuous high-dimensional vector representations.",
+      "prereqs": ["tr_tokenization", "nn_linear_algebra"],
+      "importance": 1.4
+    },
+    {
+      "id": "tr_seq2seq",
+      "topic": "tr",
+      "name": "Sequence-to-sequence modeling",
+      "description": "Encoder-decoder formulation for mapping variable-length input sequences to output sequences.",
+      "prereqs": ["nn_layers"],
+      "importance": 1.2
+    },
+    {
+      "id": "tr_attention_intuition",
+      "topic": "tr",
+      "name": "Attention intuition",
+      "description": "Dynamic content-based weighting across sequence positions rather than static bottleneck vectors.",
+      "prereqs": ["tr_seq2seq"],
+      "importance": 1.5
+    },
+    {
+      "id": "tr_dot_product_attn",
+      "topic": "tr",
+      "name": "Scaled dot-product attention",
+      "description": "Mathematical formula: Softmax(QK^T / sqrt(d_k)) * V and why sqrt(d_k) scaling matters.",
+      "prereqs": ["tr_attention_intuition", "nn_linear_algebra"],
+      "importance": 1.5
+    },
+    {
+      "id": "tr_qkv",
+      "topic": "tr",
+      "name": "Query, Key, and Value projections",
+      "description": "Linear transformation projections that unpack contextual roles of each token.",
+      "prereqs": ["tr_dot_product_attn"],
+      "importance": 1.4
+    },
+    {
+      "id": "tr_multihead",
+      "topic": "tr",
+      "name": "Multi-head attention",
+      "description": "Parallel attention heads attending to distinct representation subspaces and relation types.",
+      "prereqs": ["tr_qkv"],
+      "importance": 1.4
+    },
+    {
+      "id": "tr_positional_enc",
+      "topic": "tr",
+      "name": "Positional encoding",
+      "description": "Injecting permutation-invariant models with order signals via sinusoidal or learned encodings.",
+      "prereqs": ["tr_seq2seq"],
+      "importance": 1.2
+    },
+    {
+      "id": "tr_encoder",
+      "topic": "tr",
+      "name": "Transformer encoder",
+      "description": "Stacked multi-head self-attention, feed-forward networks, residual connections, and LayerNorm.",
+      "prereqs": ["tr_multihead", "tr_positional_enc", "nn_batch_norm"],
+      "importance": 1.4
+    },
+    {
+      "id": "tr_decoder",
+      "topic": "tr",
+      "name": "Transformer decoder",
+      "description": "Causal masked self-attention, cross-attention over encoder outputs, and autoregressive generation.",
+      "prereqs": ["tr_encoder"],
+      "importance": 1.4
+    },
+    {
+      "id": "tr_pretrain",
+      "topic": "tr",
+      "name": "Pre-training objectives (MLM, CLM)",
+      "description": "Self-supervised objectives: Masked Language Modeling vs Causal Autoregressive Language Modeling.",
+      "prereqs": ["tr_encoder", "tr_decoder"],
+      "importance": 1.3
+    },
+    {
+      "id": "tr_finetune",
+      "topic": "tr",
+      "name": "Fine-tuning and transfer learning",
+      "description": "Adapting general pre-trained weights to specific downstream supervised tasks and domains.",
+      "prereqs": ["tr_pretrain"],
+      "importance": 1.2
+    },
+    {
+      "id": "tr_bert_gpt",
+      "topic": "tr",
+      "name": "BERT vs GPT architectural families",
+      "description": "Encoder-only bidirectional architectures vs Decoder-only autoregressive models.",
+      "prereqs": ["tr_pretrain"],
+      "importance": 1.3
+    },
+
+    {
+      "id": "rag_prompt_basics",
+      "topic": "rag",
+      "name": "Prompt anatomy and instructions",
+      "description": "Structure of prompts: instructions, input context, constraints, and output formatting directives.",
+      "prereqs": [],
+      "importance": 1.5
+    },
+    {
+      "id": "rag_zero_few_shot",
+      "topic": "rag",
+      "name": "Zero-shot and few-shot in-context learning",
+      "description": "Direct task prompting vs providing exemplar input-output demonstrations in prompt context.",
+      "prereqs": ["rag_prompt_basics"],
+      "importance": 1.4
+    },
+    {
+      "id": "rag_chain_of_thought",
+      "topic": "rag",
+      "name": "Chain-of-thought prompting",
+      "description": "Eliciting multi-step reasoning trails prior to final answer generation (CoT, zero-shot CoT).",
+      "prereqs": ["rag_zero_few_shot"],
+      "importance": 1.3
+    },
+    {
+      "id": "rag_system_prompt",
+      "topic": "rag",
+      "name": "System vs user prompt boundaries",
+      "description": "Role separation, persistent persona definitions, and safety guardrails across conversation turns.",
+      "prereqs": ["rag_prompt_basics"],
+      "importance": 1.2
+    },
+    {
+      "id": "rag_temperature",
+      "topic": "rag",
+      "name": "Temperature and sampling hyperparameters",
+      "description": "Softmax scaling with temperature, Top-P (nucleus), and Top-K sampling mechanics.",
+      "prereqs": ["rag_prompt_basics"],
+      "importance": 1.2
+    },
+    {
+      "id": "rag_hallucination",
+      "topic": "rag",
+      "name": "Hallucination and factual grounding",
+      "description": "Causes of generative confabulation and techniques for grounding responses in verifiable source text.",
+      "prereqs": ["rag_zero_few_shot"],
+      "importance": 1.3
+    },
+    {
+      "id": "rag_embeddings",
+      "topic": "rag",
+      "name": "Dense text embeddings for retrieval",
+      "description": "Semantic sentence transformers, cosine similarity, inner products, and Euclidean distance.",
+      "prereqs": ["tr_embedding"],
+      "importance": 1.5
+    },
+    {
+      "id": "rag_vector_db",
+      "topic": "rag",
+      "name": "Vector databases and indexing",
+      "description": "Approximate Nearest Neighbor (ANN) search, HNSW graphs, IVF, and similarity indexes.",
+      "prereqs": ["rag_embeddings"],
+      "importance": 1.4
+    },
+    {
+      "id": "rag_chunking",
+      "topic": "rag",
+      "name": "Document chunking strategies",
+      "description": "Fixed-size, sentence-level, semantic, and recursive character splitting with overlap windows.",
+      "prereqs": ["rag_embeddings"],
+      "importance": 1.3
+    },
+    {
+      "id": "rag_retrieval",
+      "topic": "rag",
+      "name": "Dense retrieval step",
+      "description": "Query embedding, top-k candidate retrieval from vector index, and relevance scoring.",
+      "prereqs": ["rag_vector_db"],
+      "importance": 1.5
+    },
+    {
+      "id": "rag_augmentation",
+      "topic": "rag",
+      "name": "Context injection and prompt augmentation",
+      "description": "Synthesizing retrieved document chunks into prompt context windows with attribution instructions.",
+      "prereqs": ["rag_retrieval", "rag_system_prompt"],
+      "importance": 1.4
+    },
+    {
+      "id": "rag_full_pipeline",
+      "topic": "rag",
+      "name": "End-to-end RAG architecture",
+      "description": "Complete ingestion, indexing, retrieval, augmentation, and generative response orchestration.",
+      "prereqs": ["rag_augmentation"],
+      "importance": 1.5
+    },
+    {
+      "id": "rag_reranking",
+      "topic": "rag",
+      "name": "Re-ranking and cross-encoders",
+      "description": "Two-stage retrieval: bi-encoder candidate retrieval followed by heavy cross-encoder scoring.",
+      "prereqs": ["rag_full_pipeline"],
+      "importance": 1.2
+    }
+  ]
+}
