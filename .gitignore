@@ -49,3 +49,10 @@ dist/
 Thumbs.db
 .idea/
 .vscode/
+
+# Internal Agent Skills & Hackathon Briefs
+.skills/
+GEMINI.md
+MVP.md
+gemini.md
+mvp.md
