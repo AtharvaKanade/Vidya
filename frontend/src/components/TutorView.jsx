@@ -81,6 +81,7 @@ const SAMPLE_QUESTIONS = {
 export default function TutorView({
   currentConcept,
   onAnswerSubmitted,
+  onNextQuestion,
   onRequestSelfRate,
   loadingNext
 }) {
@@ -95,7 +96,7 @@ export default function TutorView({
     setIsSubmitted(false);
     setLastResult(null);
     setStartTime(Date.now());
-  }, [currentConcept?.concept_id]);
+  }, [currentConcept?.concept_id, currentConcept?.question?.id]);
 
   if (!currentConcept) {
     return (
@@ -328,10 +329,17 @@ export default function TutorView({
               <div className="flex gap-3">
                 <button
                   disabled={loadingNext}
-                  onClick={() => window.location.reload ? window.location.reload : null}
+                  onClick={async () => {
+                    setSelectedOption(null);
+                    setIsSubmitted(false);
+                    setLastResult(null);
+                    if (onNextQuestion) {
+                      await onNextQuestion();
+                    }
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-full bg-white text-zinc-950 hover:bg-zinc-200 font-semibold text-sm transition-all active:scale-[0.98] shadow-xl"
                 >
-                  <span>Continue Learning</span>
+                  <span>{loadingNext ? 'Loading Next Question...' : 'Continue Learning'}</span>
                   <ArrowRight size={16} weight="bold" />
                 </button>
               </div>

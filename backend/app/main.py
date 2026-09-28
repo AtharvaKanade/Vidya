@@ -46,6 +46,7 @@ load_dotenv()
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 CONCEPT_GRAPH_FILE = DATA_DIR / "concept_graph.json"
+QUESTION_BANK_FILE = DATA_DIR / "question_bank.json"
 
 
 def load_concept_graph() -> Dict[str, Any]:
@@ -56,10 +57,19 @@ def load_concept_graph() -> Dict[str, Any]:
         return json.load(f)
 
 
+def load_question_bank() -> List[Dict[str, Any]]:
+    """Load and parse question bank."""
+    if not QUESTION_BANK_FILE.exists():
+        return []
+    with open(QUESTION_BANK_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 CONCEPTS_DATA = load_concept_graph()
 CONCEPTS_LIST: List[Dict[str, Any]] = CONCEPTS_DATA.get("concepts", [])
 CONCEPTS_BY_ID: Dict[str, Dict[str, Any]] = {c["id"]: c for c in CONCEPTS_LIST}
 TOPICS_LIST: List[Dict[str, Any]] = CONCEPTS_DATA.get("topics", [])
+QUESTIONS_LIST: List[Dict[str, Any]] = load_question_bank()
 
 
 @asynccontextmanager
@@ -196,6 +206,37 @@ async def get_next_concept(session_id: str) -> NextConceptResponse:
 
     level = mastery_level(current_p)
 
+    # Question Selection: Filter question bank for this concept
+    # 1. Exclude already answered question IDs in this session
+    recent_attempts = get_recent_attempts(session_id, limit=200)
+    answered_q_ids = {a["question_id"] for a in recent_attempts}
+
+    concept_questions = [q for q in QUESTIONS_LIST if q.get("concept") == c_id]
+    unanswered_q = [q for q in concept_questions if q["id"] not in answered_q_ids]
+
+    # Try matching targeted difficulty first
+    targeted_q = [q for q in unanswered_q if q.get("difficulty") == difficulty]
+    selected_q_dict = None
+    if targeted_q:
+        selected_q_dict = targeted_q[0]
+    elif unanswered_q:
+        selected_q_dict = unanswered_q[0]
+    elif concept_questions:
+        selected_q_dict = concept_questions[0]
+
+    question_payload = None
+    if selected_q_dict:
+        question_payload = QuestionPayload(
+            id=selected_q_dict["id"],
+            concept=selected_q_dict["concept"],
+            difficulty=selected_q_dict.get("difficulty", difficulty),
+            type=selected_q_dict.get("type", "mcq"),
+            question=selected_q_dict["question"],
+            options=selected_q_dict["options"],
+            answer_index=selected_q_dict.get("answer_index", 0),
+            explanation_hint=selected_q_dict.get("explanation_hint"),
+        )
+
     return NextConceptResponse(
         session_id=session_id,
         concept_id=c_id,
@@ -204,7 +245,7 @@ async def get_next_concept(session_id: str) -> NextConceptResponse:
         difficulty=difficulty,
         p_known=round(current_p, 4),
         mastery_level=level,
-        question=None,  # Populated from question bank on Day 2
+        question=question_payload,
     )
 
 

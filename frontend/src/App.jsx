@@ -99,6 +99,20 @@ export default function App() {
     setActiveTab('selector');
   };
 
+  const handleNextQuestion = async () => {
+    if (!session) return;
+    setLoading(true);
+    try {
+      const nextRes = await getNextConcept(session.session_id);
+      setCurrentConcept(nextRes);
+    } catch (err) {
+      console.error("Failed fetching next concept", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSelfRatingSubmit = async (conceptId, rating) => {
     // Blends self-rating into mastery on Day 2
     console.log(`Calibrated self-rating for ${conceptId}: ${rating}`);
@@ -154,6 +168,7 @@ export default function App() {
           <TutorView
             currentConcept={currentConcept}
             onAnswerSubmitted={handleAnswerSubmit}
+            onNextQuestion={handleNextQuestion}
             onRequestSelfRate={(c) => {
               setSelfRatingConcept(c);
               setSelfRatingModalOpen(true);

@@ -1,0 +1,242 @@
+[
+  {
+    "id": "q_nn_percep_01",
+    "concept": "nn_perceptron",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the primary function of a single binary perceptron?",
+    "options": [
+      "To cluster unlabeled data points using Euclidean distance.",
+      "To compute a weighted linear combination of inputs, apply a bias, and threshold the result.",
+      "To compute attention weights across variable-length sequence elements.",
+      "To recursively generate text tokens based on autoregressive probabilities."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "The perceptron computes z = w·x + b and applies a step function."
+  },
+  {
+    "id": "q_nn_percep_02",
+    "concept": "nn_perceptron",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Which classic logical problem proved that a single-layer perceptron cannot separate non-linearly separable classes?",
+    "options": [
+      "The Logical AND gate",
+      "The Logical OR gate",
+      "The XOR (Exclusive-OR) problem",
+      "The NOT gate"
+    ],
+    "answer_index": 2,
+    "explanation_hint": "Minsky & Papert (1969) showed XOR requires non-linear decision boundaries, requiring multi-layer networks."
+  },
+  {
+    "id": "q_nn_percep_03",
+    "concept": "nn_perceptron",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "If perceptron weights w = [2, -1] and bias b = -1, what is the raw output step(w·x + b) for input x = [1, 2]?",
+    "options": [
+      "1 (since z = 2(1) - 1(2) - 1 = -1 < 0, step is 0)",
+      "0 (since z = 2(1) - 1(2) - 1 = -1 < 0)",
+      "1 (since z = 1 > 0)",
+      "-1"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Calculate: 2(1) + (-1)(2) + (-1) = 2 - 2 - 1 = -1. Since -1 < 0, step(-1) = 0."
+  },
+  {
+    "id": "q_nn_la_01",
+    "concept": "nn_linear_algebra",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the geometric meaning of the dot product between two normalized vectors u and v?",
+    "options": [
+      "The area of the parallelogram formed by u and v.",
+      "The cosine of the angle between u and v.",
+      "The perpendicular distance between u and v.",
+      "The cross product vector in 3D space."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "u · v = ||u|| ||v|| cos(theta). For unit vectors, dot product equals cosine similarity."
+  },
+  {
+    "id": "q_nn_la_02",
+    "concept": "nn_linear_algebra",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "If input tensor X has shape (B, D_in) and weight matrix W has shape (D_in, D_out), what is the shape of the linear projection X @ W?",
+    "options": [
+      "(D_in, D_out)",
+      "(B, D_out)",
+      "(B, D_in)",
+      "(D_out, B)"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Batch dimension B is preserved: (B x D_in) @ (D_in x D_out) = (B x D_out)."
+  },
+  {
+    "id": "q_nn_act_01",
+    "concept": "nn_activation",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "Why are non-linear activation functions essential in deep neural networks?",
+    "options": [
+      "They prevent gradients from ever becoming zero during backpropagation.",
+      "Without non-linearities, stacking multiple linear layers mathematically collapses into a single linear layer.",
+      "They reduce the memory footprint of weights by half.",
+      "They ensure the global minimum is always convex."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Linear combinations of linear functions remain linear: W2(W1*x) = (W2*W1)x."
+  },
+  {
+    "id": "q_nn_act_02",
+    "concept": "nn_activation",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is the primary advantage of ReLU (Rectified Linear Unit) over Sigmoid in deep networks?",
+    "options": [
+      "ReLU is continuously differentiable at zero.",
+      "ReLU has constant derivative 1 for positive inputs, significantly mitigating the vanishing gradient problem.",
+      "ReLU outputs are strictly bounded between -1 and 1.",
+      "ReLU normalizes activations across the batch dimension."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "For x > 0, d/dx ReLU(x) = 1, avoiding saturation and gradient vanishing seen in Sigmoid/Tanh."
+  },
+  {
+    "id": "q_nn_loss_01",
+    "concept": "nn_loss",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "Which loss function is the standard choice for binary classification with a single sigmoid output?",
+    "options": [
+      "Mean Squared Error (MSE)",
+      "Binary Cross-Entropy (BCE) / Log Loss",
+      "Kullback-Leibler (KL) Divergence only",
+      "Categorical Hinge Loss"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Binary Cross-Entropy: -[y*log(p) + (1-y)*log(1-p)] aligns with maximum likelihood for Bernoulli trials."
+  },
+  {
+    "id": "q_nn_grad_01",
+    "concept": "nn_gradient_descent",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "In gradient descent, in which direction are parameters updated relative to the loss gradient?",
+    "options": [
+      "In the exact same direction as the gradient vector.",
+      "In the opposite direction of the gradient vector (steepest descent).",
+      "Perpendicular (orthogonal) to the gradient vector.",
+      "In a purely randomized direction."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "theta_new = theta_old - eta * grad(Loss), stepping opposite to the gradient to minimize loss."
+  },
+  {
+    "id": "q_nn_backprop_01",
+    "concept": "nn_backprop",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Which mathematical rule forms the foundational basis of the backpropagation algorithm?",
+    "options": [
+      "Bayes' Theorem",
+      "The Multivariable Calculus Chain Rule",
+      "L'Hôpital's Rule",
+      "Taylor Series Expansion"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Backprop uses the chain rule: dL/dw_i = (dL/dy) * (dy/dz) * (dz/dw_i) to propagate gradients backwards."
+  },
+  {
+    "id": "q_tr_tok_01",
+    "concept": "tr_tokenization",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What primary problem does subword tokenization (such as Byte-Pair Encoding / BPE) solve?",
+    "options": [
+      "It eliminates the need for positional encodings.",
+      "It handles Out-Of-Vocabulary (OOV) words by decomposing unfamiliar words into frequent subword fragments.",
+      "It compresses token embeddings into 1-bit integers.",
+      "It enforces identical sequence lengths across all batches."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "BPE strikes an optimal balance between character-level and word-level vocabularies."
+  },
+  {
+    "id": "q_tr_emb_01",
+    "concept": "tr_embedding",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the purpose of an embedding lookup layer in a Transformer model?",
+    "options": [
+      "To convert discrete integer token IDs into dense, continuous vectors in R^d.",
+      "To compute causal masking across past sequence tokens.",
+      "To normalize outputs by variance across hidden units.",
+      "To perform non-linear downsampling on input sequences."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "An embedding table maps each token ID index to a learned continuous vector representation."
+  },
+  {
+    "id": "q_tr_attn_01",
+    "concept": "tr_dot_product_attn",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "In scaled dot-product attention Softmax(QK^T / sqrt(d_k))V, why is the division by sqrt(d_k) crucial?",
+    "options": [
+      "To reduce the matrix dimension to match value matrix V.",
+      "To prevent dot products from growing excessively large for large d_k, which pushes Softmax into regions of vanishingly small gradients.",
+      "To ensure that all Query vectors sum to 1.",
+      "To invert the Key matrix for orthogonal projection."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "For large d_k, dot products have variance d_k; scaling by sqrt(d_k) restores variance to 1 and stabilizes softmax gradients."
+  },
+  {
+    "id": "q_rag_prompt_01",
+    "concept": "rag_prompt_basics",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "In a robust prompt engineering architecture, what is the purpose of explicit delimiter tags (e.g. <context>...</context>)?",
+    "options": [
+      "To speed up GPU inference latency by 50%.",
+      "To clearly demarcate external reference context from system instructions, mitigating prompt injection and confusion.",
+      "To trigger token embeddings directly in the vector database.",
+      "To override the model temperature parameter."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Delimiters prevent the model from treating retrieved text chunks as executive system instructions."
+  },
+  {
+    "id": "q_rag_emb_01",
+    "concept": "rag_embeddings",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "Which mathematical metric is most commonly used to measure semantic similarity between two normalized dense text embedding vectors?",
+    "options": [
+      "Hamming distance",
+      "Cosine similarity (or dot product for unit vectors)",
+      "Levenshtein edit distance",
+      "Jaccard index on character n-grams"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Cosine similarity measures the cosine of the angle between dense semantic representations."
+  },
+  {
+    "id": "q_rag_vdb_01",
+    "concept": "rag_vector_db",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why do vector databases utilize Approximate Nearest Neighbor (ANN) indexing (e.g. HNSW, IVF) instead of exact k-NN search?",
+    "options": [
+      "Exact k-NN search requires O(N) comparisons against every vector in the database, which does not scale to millions of embeddings in sub-second latency.",
+      "Exact k-NN search is mathematically impossible in dimensions above 128.",
+      "ANN indexes eliminate all floating-point operations.",
+      "ANN indexes guarantee 100% exact cosine retrieval without recall trade-offs."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "ANN algorithms like HNSW provide logarithmic or sub-linear search time at a minor recall cost."
+  }
+]
