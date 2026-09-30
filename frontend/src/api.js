@@ -21,7 +21,21 @@ async function fetchJson(endpoint, options = {}) {
     const res = await fetch(url, config);
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.detail || `Server error (${res.status})`);
+      let errorMessage = `Server error (${res.status})`;
+      if (errorData.detail) {
+        if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          errorMessage = errorData.detail
+            .map((item) => (item.msg ? `${item.loc ? item.loc.slice(-1) + ': ' : ''}${item.msg}` : JSON.stringify(item)))
+            .join('; ');
+        } else if (typeof errorData.detail === 'object') {
+          errorMessage = errorData.detail.message || errorData.detail.msg || JSON.stringify(errorData.detail);
+        }
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      }
+      throw new Error(errorMessage);
     }
     return await res.json();
   } catch (err) {

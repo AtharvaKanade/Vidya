@@ -19,6 +19,18 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
 
+  const concepts = masteryData?.concepts || [];
+  const total = concepts.length;
+
+  // Domain breakdown
+  const topicCounts = useMemo(() => {
+    const counts = { all: total, nn: 0, tr: 0, rag: 0 };
+    concepts.forEach(c => {
+      if (counts[c.topic] !== undefined) counts[c.topic]++;
+    });
+    return counts;
+  }, [concepts, total]);
+
   if (!masteryData || !masteryData.concepts) {
     return (
       <div className="max-w-5xl mx-auto px-4 pt-20 text-center text-sm animate-fade-in" style={{ color: 'var(--text-muted)' }}>
@@ -30,21 +42,10 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
     );
   }
 
-  const concepts = masteryData.concepts;
-  const total = concepts.length;
   const mastered = concepts.filter(c => c.p_known >= 0.85).length;
   const inProgress = concepts.filter(c => c.p_known >= 0.40 && c.p_known < 0.85).length;
   const upNext = concepts.filter(c => c.p_known < 0.40).length;
   const overallPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
-
-  // Domain breakdown
-  const topicCounts = useMemo(() => {
-    const counts = { all: total, nn: 0, tr: 0, rag: 0 };
-    concepts.forEach(c => {
-      if (counts[c.topic] !== undefined) counts[c.topic]++;
-    });
-    return counts;
-  }, [concepts, total]);
 
   const filtered = concepts.filter(c => {
     if (selectedTopic !== 'all' && c.topic !== selectedTopic) return false;
@@ -91,8 +92,8 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
             <h1 className="text-2xl sm:text-3xl font-medium tracking-tight" style={{ fontFamily: 'Newsreader, Georgia, serif', color: 'var(--text-primary)' }}>
               Curriculum Mastery Graph
             </h1>
-            <p className="text-sm mt-1.5 max-w-xl leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Tracking your real-time mastery probability <em>P(L<sub>t</sub>)</em> across {total} AI curriculum concepts. Click any card to calibrate confidence via the Human Approval Line.
+            <p className="text-sm sm:text-base mt-1.5 max-w-xl leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Tracking your real-time mastery across {total} AI curriculum concepts. Click any card to calibrate your confidence level.
             </p>
           </div>
 
@@ -336,16 +337,16 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
                 {/* Progress bar & calibration action */}
                 <div className="pt-3 mt-3" style={{ borderTop: '1px solid var(--border-dim)' }}>
                   <div className="flex justify-between items-center mb-1.5 text-xs">
-                    <span className="font-mono text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                      P(L<sub>t</sub>) = {concept.p_known.toFixed(2)}
+                    <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                      Concept Mastery
                     </span>
-                    <span className="font-mono font-bold" style={{ color: isMastered ? 'var(--green)' : 'var(--text-primary)' }}>
+                    <span className="font-mono font-bold text-sm" style={{ color: isMastered ? 'var(--green)' : 'var(--text-primary)' }}>
                       {pct}%
                     </span>
                   </div>
 
                   {/* Progress bar line */}
-                  <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
+                  <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{
@@ -356,12 +357,12 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
                   </div>
 
                   {/* Interactive calibration hint */}
-                  <div className="flex items-center justify-between mt-2.5 pt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                    <span className="flex items-center gap-1 group-hover:text-[var(--accent)] transition-colors">
-                      <PencilSimple size={11} />
+                  <div className="flex items-center justify-between mt-2.5 pt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <span className="flex items-center gap-1.5 group-hover:text-[var(--accent)] transition-colors">
+                      <PencilSimple size={13} />
                       <span>Calibrate rating</span>
                     </span>
-                    <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+                    <ArrowRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
                   </div>
                 </div>
               </div>
@@ -370,16 +371,16 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
         </div>
       ) : (
         /* Table / List View */
-        <div className="rounded-lg overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}>
+        <div className="rounded-xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-sm border-collapse">
               <thead>
                 <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-mid)' }}>
-                  <th className="py-3 px-4 font-semibold label-caps">Topic</th>
-                  <th className="py-3 px-4 font-semibold label-caps">Concept Name</th>
-                  <th className="py-3 px-4 font-semibold label-caps">Status</th>
-                  <th className="py-3 px-4 font-semibold label-caps">Mastery Probability P(L)</th>
-                  <th className="py-3 px-4 font-semibold label-caps text-right">Action</th>
+                  <th className="py-3.5 px-4 font-semibold label-caps text-xs">Topic</th>
+                  <th className="py-3.5 px-4 font-semibold label-caps text-xs">Concept Name</th>
+                  <th className="py-3.5 px-4 font-semibold label-caps text-xs">Status</th>
+                  <th className="py-3.5 px-4 font-semibold label-caps text-xs">Mastery Progress</th>
+                  <th className="py-3.5 px-4 font-semibold label-caps text-xs text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: 'var(--border-dim)' }}>
@@ -394,26 +395,26 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
                       onClick={() => onConceptClick && onConceptClick(concept)}
                       className="hover:bg-[var(--bg-subtle)] cursor-pointer transition-colors"
                     >
-                      <td className="py-3 px-4 font-mono font-medium" style={{ color: 'var(--text-secondary)' }}>
-                        <span className="px-2 py-0.5 rounded text-[10px]" style={{ background: 'var(--bg-base)', border: '1px solid var(--border-dim)' }}>
+                      <td className="py-3.5 px-4 font-mono font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        <span className="px-2.5 py-1 rounded text-xs" style={{ background: 'var(--bg-base)', border: '1px solid var(--border-dim)' }}>
                           {concept.topic.toUpperCase()}
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-medium" style={{ color: 'var(--text-primary)' }}>
+                      <td className="py-3.5 px-4 font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
                         {concept.name}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4">
                         {isMastered ? (
-                          <span className="badge badge-emerald text-[10px]">Mastered</span>
+                          <span className="badge badge-emerald text-xs">Mastered</span>
                         ) : isProgress ? (
-                          <span className="badge badge-amber text-[10px]">In Progress</span>
+                          <span className="badge badge-amber text-xs">In Progress</span>
                         ) : (
-                          <span className="badge badge-neutral text-[10px]">Up Next</span>
+                          <span className="badge badge-neutral text-xs">Up Next</span>
                         )}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
+                          <div className="w-28 h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
                             <div 
                               className="h-full rounded-full" 
                               style={{ 
@@ -422,18 +423,18 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
                               }} 
                             />
                           </div>
-                          <span className="font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
-                            {pct}% ({concept.p_known.toFixed(2)})
+                          <span className="font-mono font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                            {pct}%
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             onConceptClick && onConceptClick(concept);
                           }}
-                          className="px-2.5 py-1 text-[11px] font-medium rounded transition-colors"
+                          className="px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                           style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border-mid)' }}
                         >
                           Calibrate
@@ -449,18 +450,16 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
       )}
 
       {filtered.length === 0 && (
-        <div className="text-center py-16 text-sm rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', color: 'var(--text-muted)' }}>
+        <div className="text-center py-16 text-base rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', color: 'var(--text-muted)' }}>
           No concepts match your filter or search query.
         </div>
       )}
 
       {/* ── BKT Mechanics Reference Note ── */}
-      <div className="mt-8 p-5 rounded-lg flex items-start gap-3.5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}>
-        <Info size={20} style={{ color: 'var(--indigo)', flexShrink: 0, marginTop: '2px' }} />
-        <div className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-          <strong style={{ color: 'var(--text-primary)' }}>How Vidya evaluates mastery:</strong> Vidya uses a 4-parameter standard Bayesian Knowledge Tracing engine:
-          Prior mastery <em>P(L<sub>0</sub>) = 0.20</em>, Transition probability <em>P(T) = 0.15</em>, Slip <em>P(S) = 0.10</em>, and Guess <em>P(G) = 0.20</em>.
-          When you answer questions or calibrate via self-ratings, posterior probabilities update mathematically without LLM hallucinations. Concepts with <em>P(L<sub>t</sub>) &ge; 0.85</em> are considered mastered.
+      <div className="mt-8 p-5 rounded-xl flex items-start gap-3.5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}>
+        <Info size={22} style={{ color: 'var(--indigo)', flexShrink: 0, marginTop: '2px' }} />
+        <div className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          <strong style={{ color: 'var(--text-primary)' }}>How Vidya evaluates your progress:</strong> Vidya uses a real-time Bayesian Knowledge Tracing model. When you answer questions or calibrate your confidence rating, your concept mastery updates automatically based on performance and response speed. Concepts reaching <strong>85% or higher</strong> are considered mastered.
         </div>
       </div>
 

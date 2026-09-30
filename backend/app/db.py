@@ -37,6 +37,47 @@ def _ensure_user_and_token_tables(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''")
 
 
+def hash_password(password: str) -> str:
+    """Hash a password using PBKDF2-HMAC-SHA256 with a random salt."""
+    salt = secrets.token_bytes(16)
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100_000)
+    return f"pbkdf2_sha256${base64.b64encode(salt).decode('ascii')}${base64.b64encode(derived).decode('ascii')}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify a user-entered password against the stored hash."""
+    try:
+        algorithm, salt_b64, digest_b64 = stored_hash.split("$")
+        if algorithm != "pbkdf2_sha256":
+            return False
+        salt = base64.b64decode(salt_b64.encode("ascii"))
+        expected = base64.b64decode(digest_b64.encode("ascii"))
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100_000)
+        return secrets.compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+def _seed_demo_user(conn: sqlite3.Connection) -> None:
+    """Seed default demo learner account for instant testing if not already present."""
+    demo_email = "demo@vidya.ai"
+    existing = conn.execute("SELECT id, password_hash FROM users WHERE email = ?", (demo_email,)).fetchone()
+    if not existing:
+        demo_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT INTO users (id, email, password_hash, created_at, name) VALUES (?, ?, ?, ?, ?)",
+            (demo_id, demo_email, hash_password("demo1234"), created_at, "Demo Learner"),
+        )
+    else:
+        # Ensure password hash is valid for demo1234
+        if not verify_password("demo1234", existing["password_hash"]):
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE email = ?",
+                (hash_password("demo1234"), demo_email),
+            )
+
+
 def init_db(db_path: Optional[Path] = None) -> None:
     """Initialize database tables per MVP.md Section 3 schema."""
     conn = get_connection(db_path)
@@ -78,6 +119,7 @@ def init_db(db_path: Optional[Path] = None) -> None:
             );
         """)
         _ensure_user_and_token_tables(conn)
+        _seed_demo_user(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS attempts (
                 id TEXT PRIMARY KEY,
@@ -111,27 +153,6 @@ def init_db(db_path: Optional[Path] = None) -> None:
             );
         """)
     conn.close()
-
-
-def hash_password(password: str) -> str:
-    """Hash a password using PBKDF2-HMAC-SHA256 with a random salt."""
-    salt = secrets.token_bytes(16)
-    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100_000)
-    return f"pbkdf2_sha256${base64.b64encode(salt).decode('ascii')}${base64.b64encode(derived).decode('ascii')}"
-
-
-def verify_password(password: str, stored_hash: str) -> bool:
-    """Verify a user-entered password against the stored hash."""
-    try:
-        algorithm, salt_b64, digest_b64 = stored_hash.split("$")
-        if algorithm != "pbkdf2_sha256":
-            return False
-        salt = base64.b64decode(salt_b64.encode("ascii"))
-        expected = base64.b64decode(digest_b64.encode("ascii"))
-        actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100_000)
-        return secrets.compare_digest(actual, expected)
-    except (ValueError, TypeError):
-        return False
 
 
 def create_user(email: str, password: str, name: str = "", db_path: Optional[Path] = None) -> Dict[str, Any]:

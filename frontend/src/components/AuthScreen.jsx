@@ -1,5 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { EnvelopeSimple, LockKey, RocketLaunch, Key, ArrowLeft, ArrowRight, CheckCircle, Clock, User } from '@phosphor-icons/react';
+import { 
+  BookOpenText, 
+  EnvelopeSimple, 
+  LockKey, 
+  ArrowLeft, 
+  ArrowRight, 
+  CheckCircle, 
+  Clock, 
+  User, 
+  Eye, 
+  EyeSlash, 
+  Sparkle, 
+  ShieldCheck, 
+  WarningCircle
+} from '@phosphor-icons/react';
 import { requestSignupOTP, confirmSignupOTP, resendSignupOTP, loginWithEmail } from '../api';
 
 export default function AuthScreen({ onAuthenticated }) {
@@ -8,6 +22,7 @@ export default function AuthScreen({ onAuthenticated }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   // OTP state
   const [pendingEmail, setPendingEmail] = useState('');
@@ -37,7 +52,6 @@ export default function AuthScreen({ onAuthenticated }) {
 
   // Handle OTP digit input box change
   const handleDigitChange = (index, value) => {
-    // Only keep numeric character
     const cleaned = value.replace(/[^0-9]/g, '');
     
     // If pasting full 6 digits
@@ -111,7 +125,14 @@ export default function AuthScreen({ onAuthenticated }) {
         onAuthenticated(data.token, data.user);
       }
     } catch (err) {
-      setError(err.message || 'Authentication failed. Please try again.');
+      const errMsg = typeof err === 'string'
+        ? err
+        : err?.message && typeof err.message === 'string'
+        ? err.message
+        : typeof err?.detail === 'string'
+        ? err.detail
+        : 'Authentication failed. Please check your credentials and try again.';
+      setError(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -132,7 +153,12 @@ export default function AuthScreen({ onAuthenticated }) {
       setInfoMessage(`A new 6-digit OTP code has been sent to ${pendingEmail}.`);
       setResendCooldown(30);
     } catch (err) {
-      setError(err.message || 'Failed to resend OTP code.');
+      const errMsg = typeof err === 'string'
+        ? err
+        : err?.message && typeof err.message === 'string'
+        ? err.message
+        : 'Failed to resend OTP code.';
+      setError(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -145,139 +171,73 @@ export default function AuthScreen({ onAuthenticated }) {
     }
   };
 
+  // Quick demo credentials loader
+  const handleDemoFill = () => {
+    setEmail('demo@vidya.ai');
+    setPassword('demo1234');
+    setError('');
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-16" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      <div className="w-full max-w-md rounded-3xl border shadow-xl overflow-hidden" style={{ background: 'var(--bg-surface)', borderColor: 'var(--border-mid)' }}>
-        
-        {/* Top Header Card */}
-        <div className="p-6 border-b" style={{ borderColor: 'var(--border-dim)' }}>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center shadow-md" style={{ background: 'var(--green-dim)', color: 'var(--green)' }}>
-              {mode === 'verify_otp' ? <Key size={22} /> : <RocketLaunch size={20} />}
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>Vidya AI Notebook</div>
-              <h1 className="text-xl font-semibold">
-                {mode === 'login' ? 'Welcome back' : mode === 'signup' ? 'Create learner account' : 'Verify your email'}
-              </h1>
+    <div className="min-h-[100dvh] flex flex-col justify-between" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      {/* Clean Top Header */}
+      <header className="site-header">
+        <div className="site-header-inner">
+          <div className="brand-button">
+            <span className="brand-mark"><BookOpenText size={19} weight="regular" /></span>
+            <span className="brand-name">Vidya</span>
+            <span className="brand-caption">AI learning notebook</span>
+          </div>
+
+          <div className="header-note hidden sm:flex items-center">
+            <span>Neural networks</span> · <span>Language models</span> · <span>Applied AI</span>
+          </div>
+
+          <div className="header-tools">
+            <div className="badge badge-emerald text-xs">
+              <Sparkle size={12} weight="fill" />
+              <span>BKT Engine</span>
             </div>
           </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {mode === 'login' && 'Sign in to access your AI study paths and BKT mastery state.'}
-            {mode === 'signup' && 'Fill out your details to receive an email OTP code to verify your account.'}
-            {mode === 'verify_otp' && `Enter the 6-digit OTP sent to ${pendingEmail || 'your email'}.`}
-          </p>
         </div>
+      </header>
 
-        {/* Form area */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      {/* Centered, Focused Authentication Card with spacious proportions */}
+      <main className="flex-1 flex items-center justify-center px-4 py-8 sm:py-14">
+        <div className="w-full max-w-[560px] animate-fade-in-up">
           
-          {/* LOGIN OR SIGNUP STEP 1 */}
-          {mode !== 'verify_otp' && (
-            <>
-              {mode === 'signup' && (
-                <div>
-                  <label className="block text-xs uppercase tracking-[0.12em] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Full Name</label>
-                  <div className="flex items-center gap-2 rounded-xl border px-3" style={{ background: 'var(--bg-raised)', borderColor: 'var(--border-mid)' }}>
-                    <User size={16} style={{ color: 'var(--text-muted)' }} />
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Alex Johnson"
-                      required={mode === 'signup'}
-                      className="w-full bg-transparent py-3 text-sm outline-none"
-                      style={{ color: 'var(--text-primary)' }}
-                    />
-                  </div>
-                </div>
-              )}
+          {/* Main Card */}
+          <div className="surface-card rounded-2xl border border-[var(--border-mid)] bg-[var(--bg-surface)] shadow-xl overflow-hidden transition-all duration-300">
+            
+            {/* Sliding Segmented Tab Switcher */}
+            {mode !== 'verify_otp' && (
+              <div className="relative p-2 bg-[var(--bg-subtle)] border-b border-[var(--border-dim)] flex items-center">
+                {/* Gliding background pill indicator */}
+                <div 
+                  className="absolute top-2 bottom-2 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-mid)] shadow-xs transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                  style={{
+                    width: 'calc(50% - 8px)',
+                    left: '8px',
+                    transform: mode === 'login' ? 'translateX(0%)' : 'translateX(100%)',
+                  }}
+                />
 
-              <div>
-                <label className="block text-xs uppercase tracking-[0.12em] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Email Address</label>
-                <div className="flex items-center gap-2 rounded-xl border px-3" style={{ background: 'var(--bg-raised)', borderColor: 'var(--border-mid)' }}>
-                  <EnvelopeSimple size={16} style={{ color: 'var(--text-muted)' }} />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="student@example.com"
-                    required
-                    className="w-full bg-transparent py-3 text-sm outline-none"
-                    style={{ color: 'var(--text-primary)' }}
-                  />
-                </div>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setError('');
+                    setInfoMessage('');
+                  }}
+                  className={`relative z-10 flex-1 py-2.5 text-sm font-semibold text-center rounded-xl transition-colors duration-200 cursor-pointer ${
+                    mode === 'login'
+                      ? 'text-[var(--text-primary)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  Sign In
+                </button>
 
-              <div>
-                <label className="block text-xs uppercase tracking-[0.12em] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Password</label>
-                <div className="flex items-center gap-2 rounded-xl border px-3" style={{ background: 'var(--bg-raised)', borderColor: 'var(--border-mid)' }}>
-                  <LockKey size={16} style={{ color: 'var(--text-muted)' }} />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={mode === 'signup' ? 'At least 6 characters' : 'Enter your password'}
-                    required
-                    className="w-full bg-transparent py-3 text-sm outline-none"
-                    style={{ color: 'var(--text-primary)' }}
-                  />
-                </div>
-              </div>
-
-              {mode === 'signup' && (
-                <div>
-                  <label className="block text-xs uppercase tracking-[0.12em] mb-2 font-medium" style={{ color: 'var(--text-muted)' }}>Confirm Password</label>
-                  <div className="flex items-center gap-2 rounded-xl border px-3" style={{ background: 'var(--bg-raised)', borderColor: 'var(--border-mid)' }}>
-                    <LockKey size={16} style={{ color: 'var(--text-muted)' }} />
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Re-enter your password"
-                      required={mode === 'signup'}
-                      className="w-full bg-transparent py-3 text-sm outline-none"
-                      style={{ color: 'var(--text-primary)' }}
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* OTP VERIFICATION STEP */}
-          {mode === 'verify_otp' && (
-            <div className="space-y-4 animate-fade-in">
-              <div>
-                <label className="block text-xs uppercase tracking-[0.12em] mb-3 text-center font-medium" style={{ color: 'var(--text-muted)' }}>
-                  Enter 6-Digit OTP Code
-                </label>
-                
-                {/* 6 Digit Inputs */}
-                <div className="flex items-center justify-between gap-2">
-                  {otpDigits.map((digit, idx) => (
-                    <input
-                      key={idx}
-                      ref={inputRefs[idx]}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleDigitChange(idx, e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(idx, e)}
-                      className="w-12 h-14 text-center text-xl font-bold font-mono rounded-xl border outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                      style={{
-                        background: 'var(--bg-raised)',
-                        borderColor: digit ? 'var(--green)' : 'var(--border-mid)',
-                        color: 'var(--text-primary)',
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Resend OTP & Change Email options */}
-              <div className="flex items-center justify-between text-xs pt-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -285,91 +245,328 @@ export default function AuthScreen({ onAuthenticated }) {
                     setError('');
                     setInfoMessage('');
                   }}
-                  className="flex items-center gap-1 hover:underline"
-                  style={{ color: 'var(--text-muted)' }}
+                  className={`relative z-10 flex-1 py-2.5 text-sm font-semibold text-center rounded-xl transition-colors duration-200 cursor-pointer ${
+                    mode === 'signup'
+                      ? 'text-[var(--text-primary)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                  }`}
                 >
-                  <ArrowLeft size={14} />
-                  <span>Change Email</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleResendOTP}
-                  disabled={resendCooldown > 0 || submitting}
-                  className="flex items-center gap-1 font-medium hover:underline disabled:opacity-50 disabled:no-underline"
-                  style={{ color: resendCooldown > 0 ? 'var(--text-muted)' : 'var(--green)' }}
-                >
-                  <Clock size={14} />
-                  <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend OTP'}</span>
+                  Create Account
                 </button>
               </div>
+            )}
+
+            {/* Header inside Card with Smooth Keyed Crossfade */}
+            <div key={`header-${mode}`} className="p-7 sm:p-8 pb-5 border-b border-[var(--border-dim)] auth-title-switch">
+              <div className="flex items-center justify-between gap-3 mb-1.5">
+                <span className="label-caps font-mono text-[11px]">
+                  {mode === 'login' ? 'Learner Portal' : mode === 'signup' ? 'New Registration' : 'Two-Factor Verification'}
+                </span>
+                {mode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={handleDemoFill}
+                    className="text-xs font-mono text-[var(--accent)] hover:underline flex items-center gap-1.5 cursor-pointer transition-transform active:scale-95 px-2 py-1 rounded bg-[var(--accent-dim)] border border-[var(--accent-border)]"
+                    title="Quick-fill demo student credentials"
+                  >
+                    <Sparkle size={13} weight="fill" />
+                    <span>Demo fill</span>
+                  </button>
+                )}
+              </div>
+              
+              <h1 className="heading-section text-2xl sm:text-3xl font-serif text-[var(--text-primary)]">
+                {mode === 'login' && 'Welcome back'}
+                {mode === 'signup' && 'Create your account'}
+                {mode === 'verify_otp' && 'Verify your email'}
+              </h1>
+              <p className="text-sm text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+                {mode === 'login' && 'Sign in to access your AI study paths and BKT mastery state.'}
+                {mode === 'signup' && 'Fill out your details to receive an email OTP verification code.'}
+                {mode === 'verify_otp' && `Enter the 6-digit OTP sent to ${pendingEmail || 'your email'}.`}
+              </p>
             </div>
-          )}
 
-          {/* Info notice */}
-          {infoMessage && (
-            <div className="rounded-xl border px-3 py-2 text-xs flex items-center gap-2" style={{ background: 'var(--green-dim)', borderColor: 'rgba(16, 185, 129, 0.3)', color: '#34d399' }}>
-              <CheckCircle size={16} className="shrink-0" />
-              <span>{infoMessage}</span>
-            </div>
-          )}
+            {/* Form Area */}
+            <form onSubmit={handleSubmit} className="p-7 sm:p-8 space-y-5">
+              
+              {/* LOGIN / SIGNUP FIELDS */}
+              {mode !== 'verify_otp' && (
+                <>
+                  {/* Full Name animated field (SignUp only) */}
+                  {mode === 'signup' && (
+                    <div className="auth-field-enter">
+                      <label className="block text-xs uppercase tracking-wider mb-2 font-semibold text-[var(--text-muted)] font-mono">
+                        Full Name
+                      </label>
+                      <div className="flex items-center gap-3 rounded-xl border border-[var(--border-mid)] bg-[var(--bg-subtle)] px-4 py-3 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[var(--accent-glow)]">
+                        <User size={18} className="text-[var(--text-muted)] shrink-0" />
+                        <input
+                          type="text"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          placeholder="e.g. Alex Johnson"
+                          required={mode === 'signup'}
+                          className="w-full bg-transparent text-sm sm:text-base outline-none text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                        />
+                      </div>
+                    </div>
+                  )}
 
-          {/* Error notification */}
-          {error && (
-            <div className="rounded-xl border px-3 py-2 text-xs" style={{ background: 'var(--red-dim)', borderColor: 'var(--red-border)', color: '#fecaca' }}>
-              {error}
-            </div>
-          )}
+                  {/* Email Address */}
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider mb-2 font-semibold text-[var(--text-muted)] font-mono">
+                      Email Address
+                    </label>
+                    <div className="flex items-center gap-3 rounded-xl border border-[var(--border-mid)] bg-[var(--bg-subtle)] px-4 py-3 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[var(--accent-glow)]">
+                      <EnvelopeSimple size={18} className="text-[var(--text-muted)] shrink-0" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="student@example.com"
+                        required
+                        className="w-full bg-transparent text-sm sm:text-base outline-none text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                      />
+                    </div>
+                  </div>
 
-          {/* Submit Action Button */}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full btn btn-primary py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg"
-            style={{ opacity: submitting ? 0.7 : 1 }}
-          >
-            <span>
-              {submitting
-                ? 'Processing...'
-                : mode === 'login'
-                ? 'Sign In'
-                : mode === 'signup'
-                ? 'Send OTP Code'
-                : 'Confirm & Create Account'}
-            </span>
-            <ArrowRight size={16} />
-          </button>
+                  {/* Password */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs uppercase tracking-wider font-semibold text-[var(--text-muted)] font-mono">
+                        Password
+                      </label>
+                      {mode === 'signup' && (
+                        <span className="text-xs text-[var(--text-muted)] font-mono animate-fade-in">Min 6 characters</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 rounded-xl border border-[var(--border-mid)] bg-[var(--bg-subtle)] px-4 py-3 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[var(--accent-glow)]">
+                      <LockKey size={18} className="text-[var(--text-muted)] shrink-0" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={mode === 'signup' ? 'Create a secure password' : 'Enter your password'}
+                        required
+                        className="w-full bg-transparent text-sm sm:text-base outline-none text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] focus:outline-none cursor-pointer p-1 rounded transition-colors"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
 
-          {/* Mode Switch Button */}
-          {mode !== 'verify_otp' ? (
-            <button
-              type="button"
-              onClick={() => {
-                setMode(mode === 'login' ? 'signup' : 'login');
-                setError('');
-                setInfoMessage('');
-              }}
-              className="w-full btn btn-ghost py-2.5 rounded-xl text-sm"
-            >
-              {mode === 'login' ? 'Need an account? Create one with Email OTP' : 'Already have an account? Sign in'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setMode('login');
-                setError('');
-                setInfoMessage('');
-              }}
-              className="w-full btn btn-ghost py-2 rounded-xl text-xs"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              Cancel and Return to Sign In
-            </button>
-          )}
+                  {/* Confirm Password animated field (SignUp only) */}
+                  {mode === 'signup' && (
+                    <div className="auth-field-enter">
+                      <label className="block text-xs uppercase tracking-wider mb-2 font-semibold text-[var(--text-muted)] font-mono">
+                        Confirm Password
+                      </label>
+                      <div className="flex items-center gap-3 rounded-xl border border-[var(--border-mid)] bg-[var(--bg-subtle)] px-4 py-3 transition-all duration-200 focus-within:border-[var(--accent)] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[var(--accent-glow)]">
+                        <LockKey size={18} className="text-[var(--text-muted)] shrink-0" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter your password"
+                          required={mode === 'signup'}
+                          className="w-full bg-transparent text-sm sm:text-base outline-none text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
 
-        </form>
-      </div>
+              {/* OTP VERIFICATION VIEW */}
+              {mode === 'verify_otp' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider mb-4 text-center font-semibold text-[var(--text-muted)] font-mono">
+                      Enter 6-Digit OTP Code
+                    </label>
+                    
+                    {/* 6 Digit Inputs */}
+                    <div className="flex items-center justify-between gap-2 max-w-sm mx-auto">
+                      {otpDigits.map((digit, idx) => (
+                        <input
+                          key={idx}
+                          ref={inputRefs[idx]}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={digit}
+                          onChange={(e) => handleDigitChange(idx, e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(idx, e)}
+                          className="w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold font-mono rounded-xl border border-[var(--border-mid)] bg-[var(--bg-subtle)] outline-none transition-all duration-200 focus:border-[var(--green)] focus:bg-[var(--bg-surface)] focus:ring-2 focus:ring-[var(--green-dim)] text-[var(--text-primary)]"
+                          style={{
+                            borderColor: digit ? 'var(--green)' : 'var(--border-mid)',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Debug OTP Quick Fill Chip (if in dev mode) */}
+                  {debugOtp && (
+                    <div className="p-3 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-dim)] flex items-center justify-between text-xs sm:text-sm animate-fade-in">
+                      <div className="flex items-center gap-2 text-[var(--amber)]">
+                        <Sparkle size={16} weight="fill" />
+                        <span>Dev code: <strong className="font-mono tracking-widest text-sm">{debugOtp}</strong></span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAutoFillDebugOTP}
+                        className="px-2.5 py-1 bg-[var(--bg-surface)] rounded-md border border-[var(--amber-border)] text-[var(--amber)] font-semibold hover:bg-white text-xs cursor-pointer transition-transform active:scale-95"
+                      >
+                        Auto-fill
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Resend OTP & Change Email options */}
+                  <div className="flex items-center justify-between text-xs sm:text-sm pt-2 border-t border-[var(--border-dim)]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('signup');
+                        setError('');
+                        setInfoMessage('');
+                      }}
+                      className="flex items-center gap-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline cursor-pointer transition-colors"
+                    >
+                      <ArrowLeft size={16} />
+                      <span>Change Email</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResendOTP}
+                      disabled={resendCooldown > 0 || submitting}
+                      className="flex items-center gap-1.5 font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:underline transition-colors"
+                      style={{ color: resendCooldown > 0 ? 'var(--text-muted)' : 'var(--green)' }}
+                    >
+                      <Clock size={16} />
+                      <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Feedback Message Alerts */}
+              {infoMessage && (
+                <div className="rounded-xl border border-[var(--green-border)] bg-[var(--green-dim)] p-3.5 text-xs sm:text-sm flex items-start gap-2.5 text-[var(--green)] animate-fade-in">
+                  <CheckCircle size={18} className="shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{infoMessage}</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-xl border border-[var(--red-border)] bg-[var(--red-dim)] p-3.5 text-xs sm:text-sm flex items-start gap-2.5 text-[var(--red)] animate-fade-in">
+                  <WarningCircle size={18} className="shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{error}</span>
+                </div>
+              )}
+
+              {/* Primary Submit Button with smooth transitions */}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full btn btn-primary py-3.5 rounded-xl text-sm sm:text-base font-semibold flex items-center justify-center gap-2 shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer"
+                style={{
+                  background: 'var(--accent)',
+                  color: '#ffffff',
+                  opacity: submitting ? 0.75 : 1,
+                }}
+              >
+                <span className="auth-title-switch" key={`btn-${mode}`}>
+                  {submitting
+                    ? 'Please wait...'
+                    : mode === 'login'
+                    ? 'Sign In'
+                    : mode === 'signup'
+                    ? 'Send Verification OTP'
+                    : 'Verify & Enter Notebook'}
+                </span>
+                <ArrowRight size={18} weight="bold" className="transition-transform group-hover:translate-x-0.5" />
+              </button>
+
+              {/* Secondary Navigation */}
+              <div className="pt-2 text-center">
+                {mode === 'login' ? (
+                  <p className="text-xs sm:text-sm text-[var(--text-secondary)]">
+                    Need an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('signup');
+                        setError('');
+                        setInfoMessage('');
+                      }}
+                      className="text-[var(--accent)] font-semibold hover:underline cursor-pointer transition-colors"
+                    >
+                      Create one with Email OTP
+                    </button>
+                  </p>
+                ) : mode === 'signup' ? (
+                  <p className="text-xs sm:text-sm text-[var(--text-secondary)]">
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('login');
+                        setError('');
+                        setInfoMessage('');
+                      }}
+                      className="text-[var(--accent)] font-semibold hover:underline cursor-pointer transition-colors"
+                    >
+                      Sign in
+                    </button>
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('login');
+                      setError('');
+                      setInfoMessage('');
+                    }}
+                    className="text-xs sm:text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:underline cursor-pointer transition-colors"
+                  >
+                    Cancel verification and return to sign in
+                  </button>
+                )}
+              </div>
+
+            </form>
+          </div>
+
+          {/* Privacy & Session Notice */}
+          <div className="mt-5 flex items-center justify-center gap-2 text-xs sm:text-sm text-[var(--text-muted)] font-mono text-center">
+            <ShieldCheck size={16} className="text-[var(--green)] shrink-0" />
+            <span>Private session state · No personal tracking</span>
+          </div>
+
+        </div>
+      </main>
+
+      {/* Clean Footer */}
+      <footer className="py-3.5 border-t border-[var(--border-dim)] text-center text-xs text-[var(--text-muted)] bg-[var(--bg-subtle)]">
+        <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="font-serif italic">Vidya AI Notebook</span>
+            <span>·</span>
+            <span>BFWAI/HACK 26</span>
+          </div>
+          <div>Adaptive Bayesian Knowledge Tracing</div>
+        </div>
+      </footer>
     </div>
   );
 }

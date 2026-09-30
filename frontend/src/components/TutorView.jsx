@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { 
-  Sparkle, CheckCircle, XCircle, ArrowRight, Brain, 
+import {
+  Sparkle, CheckCircle, XCircle, ArrowRight, Brain,
   Info, BookOpen, ArrowsClockwise, Lightning, Lightbulb,
   CaretDown, CaretUp
 } from '@phosphor-icons/react';
@@ -71,12 +71,12 @@ export default function TutorView({
       isMounted = false;
     };
   }, [
-    isSubmitted, 
-    showExplanation, 
-    session?.session_id, 
-    currentConcept?.concept_id, 
-    currentConcept?.question?.id, 
-    activeStyle, 
+    isSubmitted,
+    showExplanation,
+    session?.session_id,
+    currentConcept?.concept_id,
+    currentConcept?.question?.id,
+    activeStyle,
     selectedOption
   ]);
 
@@ -95,7 +95,7 @@ export default function TutorView({
   if (!currentConcept) {
     return (
       <div className="max-w-2xl mx-auto px-4 pt-36 text-center animate-fade-in">
-        <div 
+        <div
           className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin"
           style={{ background: 'var(--green-dim)', border: '1px solid var(--green-border)' }}
         >
@@ -186,13 +186,13 @@ export default function TutorView({
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-24 animate-fade-in-up tutor-workspace">
-      
+
       {/* 2-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
+
         {/* ── Left Column: Concept Info & Mastery Card ── */}
         <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-4">
-          <div 
+          <div
             className="p-5 sm:p-6 rounded-lg"
             style={{
               background: 'var(--bg-surface)',
@@ -212,7 +212,7 @@ export default function TutorView({
 
             {/* Circular Mastery Meter */}
             <div className="flex items-center justify-center my-5">
-              <div 
+              <div
                 className="relative w-32 h-32 flex items-center justify-center cursor-help"
                 title="BKT Mastery: Bayesian estimate of concept mastery. >= 85% is Mastered."
               >
@@ -245,7 +245,7 @@ export default function TutorView({
                   <span className="font-mono text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
                     {scorePercent}%
                   </span>
-                  <span 
+                  <span
                     className="text-[9px] uppercase font-semibold tracking-wider flex items-center gap-1"
                     style={{ color: 'var(--text-muted)' }}
                   >
@@ -292,9 +292,9 @@ export default function TutorView({
 
         {/* ── Right Column: Interactive Practice Question & AI Explanation ── */}
         <div className="lg:col-span-8 space-y-4">
-          
+
           {/* Main Question Card */}
-          <div 
+          <div
             className="p-6 sm:p-8 rounded-lg"
             style={{
               background: 'var(--bg-surface)',
@@ -310,7 +310,7 @@ export default function TutorView({
             </div>
 
             {/* Question Text */}
-            <h3 
+            <h3
               className="text-base sm:text-lg font-medium leading-relaxed mb-6"
               style={{ color: 'var(--text-primary)' }}
             >
@@ -415,7 +415,7 @@ export default function TutorView({
 
                 {/* ── Collapsible Vidya AI Explainer Card ── */}
                 {showExplanation && (
-                  <div 
+                  <div
                     className="p-5 rounded-lg transition-all animate-fade-in"
                     style={{
                       background: 'var(--bg-raised)',
