@@ -1,15 +1,31 @@
-import React, { useState } from 'react';
-import { MagnifyingGlass, BookOpen, CheckCircle, Sparkle, SlidersHorizontal } from '@phosphor-icons/react';
+import React, { useState, useMemo } from 'react';
+import { 
+  BookOpen, 
+  CheckCircle, 
+  Sparkle, 
+  MagnifyingGlass, 
+  SlidersHorizontal,
+  Info,
+  ArrowRight,
+  ChartLineUp,
+  Rows,
+  SquaresFour,
+  PencilSimple
+} from '@phosphor-icons/react';
 
 export default function MasteryMap({ masteryData, onConceptClick }) {
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
 
   if (!masteryData || !masteryData.concepts) {
     return (
-      <div className="max-w-5xl mx-auto px-4 pt-36 text-center text-gray-500 text-sm animate-fade-in">
-        Loading knowledge state map from BKT engine...
+      <div className="max-w-5xl mx-auto px-4 pt-20 text-center text-sm animate-fade-in" style={{ color: 'var(--text-muted)' }}>
+        <div className="w-10 h-10 rounded-full mx-auto mb-3 flex items-center justify-center animate-spin" style={{ background: 'var(--green-dim)', border: '1px solid var(--green-border)' }}>
+          <ChartLineUp size={20} style={{ color: 'var(--green)' }} />
+        </div>
+        Loading Bayesian Knowledge Tracing state...
       </div>
     );
   }
@@ -21,6 +37,15 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
   const upNext = concepts.filter(c => c.p_known < 0.40).length;
   const overallPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
 
+  // Domain breakdown
+  const topicCounts = useMemo(() => {
+    const counts = { all: total, nn: 0, tr: 0, rag: 0 };
+    concepts.forEach(c => {
+      if (counts[c.topic] !== undefined) counts[c.topic]++;
+    });
+    return counts;
+  }, [concepts, total]);
+
   const filtered = concepts.filter(c => {
     if (selectedTopic !== 'all' && c.topic !== selectedTopic) return false;
     if (selectedStatus === 'mastered' && c.p_known < 0.85) return false;
@@ -31,212 +56,415 @@ export default function MasteryMap({ masteryData, onConceptClick }) {
   });
 
   const topicTabs = [
-    { id: 'all', label: 'All Domains' },
-    { id: 'nn',  label: 'Neural Networks' },
-    { id: 'tr',  label: 'Transformers' },
-    { id: 'rag', label: 'Prompting & RAG' },
+    { id: 'all', label: 'All Topics', count: topicCounts.all },
+    { id: 'nn',  label: 'Neural Networks', count: topicCounts.nn },
+    { id: 'tr',  label: 'Transformers', count: topicCounts.tr },
+    { id: 'rag', label: 'Prompting & RAG', count: topicCounts.rag },
   ];
 
-  // SVG mini-ring parameters for stats pod
-  const miniRadius = 18;
+  // SVG ring parameters
+  const miniRadius = 22;
   const miniCircumference = 2 * Math.PI * miniRadius;
   const miniOffset = miniCircumference - ((overallPct / 100) * miniCircumference);
 
+  const getTopicLabel = (topic) => {
+    switch (topic) {
+      case 'nn': return 'Neural Networks';
+      case 'tr': return 'Transformers';
+      case 'rag': return 'Prompting & RAG';
+      default: return topic.toUpperCase();
+    }
+  };
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 animate-fade-in-up" style={{ paddingTop: '6.5rem' }}>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-10 pb-24 animate-fade-in-up">
 
-      {/* ── Top Header & Stats Pod ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-        <div>
-          <div className="badge badge-emerald inline-flex items-center gap-1.5 mb-3 shadow-sm">
-            <BookOpen size={12} weight="fill" />
-            <span>40 Core Curriculum Concepts</span>
+      {/* ── Page Header & Stats Banner ── */}
+      <div className="mb-8 p-6 sm:p-8 rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          
+          <div>
+            <div className="flex items-center gap-2 mb-2 font-mono text-[11px] font-semibold tracking-wider uppercase" style={{ color: 'var(--green)' }}>
+              <BookOpen size={14} weight="bold" />
+              <span>Curriculum State · Bayesian Knowledge Tracing</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-medium tracking-tight" style={{ fontFamily: 'Newsreader, Georgia, serif', color: 'var(--text-primary)' }}>
+              Curriculum Mastery Graph
+            </h1>
+            <p className="text-sm mt-1.5 max-w-xl leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Tracking your real-time mastery probability <em>P(L<sub>t</sub>)</em> across {total} AI curriculum concepts. Click any card to calibrate confidence via the Human Approval Line.
+            </p>
           </div>
-          <h1 className="heading-section text-2xl sm:text-3xl text-white font-extrabold tracking-tight">
-            Curriculum Mastery Graph
-          </h1>
-          <p className="text-gray-400 text-xs sm:text-sm mt-1">
-            Real-time Bayesian belief state across all tracked topics and prerequisites.
-          </p>
-        </div>
 
-        {/* Stats Pod with Mini Gauge */}
-        <div className="glass rounded-2xl p-1 shrink-0 border border-white/10 shadow-xl">
-          <div className="glass-card rounded-[0.85rem] flex items-center gap-5 p-4">
-            {/* Mini SVG Gauge */}
-            <div className="relative w-12 h-12 flex items-center justify-center shrink-0">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 44 44">
+          {/* Stats Pod */}
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 p-4 rounded-lg self-start lg:self-center" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-dim)' }}>
+            
+            {/* SVG Ring */}
+            <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 54 54">
                 <circle
-                  cx="22"
-                  cy="22"
+                  cx="27"
+                  cy="27"
                   r={miniRadius}
-                  className="text-white/[0.08]"
-                  strokeWidth="4"
-                  stroke="currentColor"
+                  stroke="var(--border-mid)"
+                  strokeWidth="5"
                   fill="transparent"
                 />
                 <circle
-                  cx="22"
-                  cy="22"
+                  cx="27"
+                  cy="27"
                   r={miniRadius}
-                  className="text-emerald-400 transition-all duration-700 ease-out"
-                  strokeWidth="4"
+                  stroke="var(--green)"
+                  strokeWidth="5"
                   strokeDasharray={miniCircumference}
                   strokeDashoffset={miniOffset}
                   strokeLinecap="round"
-                  stroke="currentColor"
                   fill="transparent"
+                  className="transition-all duration-700 ease-out"
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-mono font-bold text-white">
+              <span className="absolute inset-0 flex items-center justify-center font-mono text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
                 {overallPct}%
               </span>
             </div>
 
-            <div>
-              <div className="label-caps mb-0.5 text-[10px]">TOTAL PROGRESS</div>
-              <div className="font-mono text-sm sm:text-base font-bold text-white">
-                {mastered} / {total} <span className="text-xs text-gray-500 font-normal">Concepts</span>
+            <div className="space-y-1">
+              <div className="label-caps" style={{ color: 'var(--text-muted)' }}>Syllabus Mastery</div>
+              <div className="font-mono text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                {mastered} <span className="text-xs font-normal" style={{ color: 'var(--text-secondary)' }}>of {total} Mastered</span>
               </div>
             </div>
 
-            <div className="hidden sm:block w-px h-8 bg-white/[0.08]" />
+            <div className="w-px h-10 hidden sm:block" style={{ background: 'var(--border-mid)' }} />
 
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 text-xs font-medium">
-              <span className="flex items-center gap-1.5 text-emerald-300">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                {mastered} Mastered
-              </span>
-              <span className="flex items-center gap-1.5 text-amber-300">
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                {inProgress} In Progress
-              </span>
-              <span className="flex items-center gap-1.5 text-gray-400">
-                <span className="w-2 h-2 rounded-full bg-gray-600" />
-                {upNext} Up Next
-              </span>
+            {/* Status Breakdown Pills */}
+            <div className="flex flex-wrap gap-2 text-xs font-medium">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded" style={{ background: 'var(--green-dim)', color: 'var(--green)', border: '1px solid var(--green-border)' }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: 'var(--green)' }} />
+                <span>{mastered} Mastered (&ge;85%)</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded" style={{ background: 'var(--amber-dim)', color: 'var(--amber)', border: '1px solid var(--amber-border)' }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: 'var(--amber)' }} />
+                <span>{inProgress} In Progress</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded" style={{ background: 'var(--bg-base)', color: 'var(--text-muted)', border: '1px solid var(--border-mid)' }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: 'var(--text-muted)' }} />
+                <span>{upNext} Up Next (&lt;40%)</span>
+              </div>
             </div>
+
           </div>
+
         </div>
       </div>
 
-      {/* ── Filter Bar ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 p-2 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+      {/* ── Filter & Search Control Bar ── */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-6 p-3 rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}>
+        
         {/* Domain Tabs */}
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           {topicTabs.map(tab => {
             const active = selectedTopic === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setSelectedTopic(tab.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  active
-                    ? 'bg-emerald-400 text-black font-bold shadow-sm'
-                    : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'
-                }`}
+                className="px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-1.5"
+                style={{
+                  background: active ? 'var(--accent)' : 'transparent',
+                  color: active ? '#ffffff' : 'var(--text-secondary)',
+                  border: active ? '1px solid var(--accent)' : '1px solid transparent',
+                  fontWeight: active ? '600' : '500'
+                }}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                <span 
+                  className="font-mono text-[10px] px-1.5 py-0.2 rounded"
+                  style={{
+                    background: active ? 'rgba(255,255,255,0.25)' : 'var(--bg-subtle)',
+                    color: active ? '#ffffff' : 'var(--text-muted)'
+                  }}
+                >
+                  {tab.count}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Status Filter & Search */}
-        <div className="flex items-center gap-2">
+        {/* Search, Status, and View Mode */}
+        <div className="flex flex-wrap items-center gap-2">
+          
+          {/* Status filter */}
           <select
             value={selectedStatus}
             onChange={e => setSelectedStatus(e.target.value)}
-            aria-label="Filter by status"
-            className="bg-[#121218] text-gray-300 border border-white/10 rounded-xl px-3 py-1.5 text-xs outline-none cursor-pointer focus:border-emerald-500/50"
+            aria-label="Filter by mastery status"
+            className="px-3 py-1.5 text-xs rounded outline-none font-medium cursor-pointer"
+            style={{
+              background: 'var(--bg-subtle)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-mid)'
+            }}
           >
             <option value="all">All Statuses</option>
-            <option value="mastered">Mastered (≥85%)</option>
-            <option value="inProgress">In Progress (40-84%)</option>
+            <option value="mastered">Mastered (&ge;85%)</option>
+            <option value="inProgress">In Progress (40–84%)</option>
             <option value="upNext">Up Next (&lt;40%)</option>
           </select>
 
-          <div className="relative">
+          {/* Search input */}
+          <div className="relative flex-1 sm:flex-initial">
             <MagnifyingGlass
               size={14}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--text-muted)' }}
             />
             <input
               type="text"
               placeholder="Search concepts..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="bg-[#121218] text-white pl-8 pr-3 py-1.5 text-xs border border-white/10 rounded-xl outline-none w-36 sm:w-44 focus:border-emerald-500/50 transition-colors"
+              className="w-full sm:w-44 pl-8 pr-3 py-1.5 text-xs rounded outline-none"
+              style={{
+                background: 'var(--bg-subtle)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-mid)'
+              }}
             />
           </div>
-        </div>
-      </div>
 
-      {/* ── Concept Grid ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filtered.map((concept) => {
-          const pct = Math.round(concept.p_known * 100);
-          const isMastered = concept.p_known >= 0.85;
-          const isProgress = concept.p_known >= 0.40 && !isMastered;
-
-          let cardBorder = 'border-white/[0.06] hover:border-white/[0.15]';
-          let badgeEl = <span className="badge badge-neutral text-[10px]">Up Next</span>;
-
-          if (isMastered) {
-            cardBorder = 'border-emerald-500/30 hover:border-emerald-500/60 shadow-emerald-950/20';
-            badgeEl = <span className="badge badge-emerald text-[10px]">Mastered 🏆</span>;
-          } else if (isProgress) {
-            cardBorder = 'border-amber-500/30 hover:border-amber-500/60';
-            badgeEl = <span className="badge badge-amber text-[10px]">In Progress ⚡</span>;
-          }
-
-          return (
-            <div
-              key={concept.id}
-              onClick={() => onConceptClick && onConceptClick(concept)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && onConceptClick && onConceptClick(concept)}
-              className={`glass-card p-4 rounded-2xl border ${cardBorder} flex flex-col justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-lg`}
+          {/* View Mode Toggle */}
+          <div className="flex items-center rounded p-0.5" style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-mid)' }}>
+            <button
+              onClick={() => setViewMode('grid')}
+              title="Grid view"
+              className="p-1 rounded transition-colors"
+              style={{
+                background: viewMode === 'grid' ? 'var(--bg-surface)' : 'transparent',
+                color: viewMode === 'grid' ? 'var(--accent)' : 'var(--text-muted)',
+                boxShadow: viewMode === 'grid' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
+              }}
             >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2.5">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-gray-400 bg-white/[0.04] px-2 py-0.5 rounded border border-white/[0.06]">
-                    {concept.topic}
-                  </span>
-                  {badgeEl}
-                </div>
+              <SquaresFour size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              title="List view"
+              className="p-1 rounded transition-colors"
+              style={{
+                background: viewMode === 'table' ? 'var(--bg-surface)' : 'transparent',
+                color: viewMode === 'table' ? 'var(--accent)' : 'var(--text-muted)',
+                boxShadow: viewMode === 'table' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
+              }}
+            >
+              <Rows size={16} />
+            </button>
+          </div>
 
-                <h4 className="text-xs sm:text-sm font-semibold text-white leading-snug mb-3">
-                  {concept.name}
-                </h4>
-              </div>
+        </div>
 
-              {/* Progress bar */}
-              <div className="pt-3 border-t border-white/[0.05]">
-                <div className="flex justify-between items-center mb-1 text-[11px] text-gray-400">
-                  <span>Confidence</span>
-                  <span className="font-mono font-semibold text-gray-200">{pct}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isMastered ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : 'bg-gradient-to-r from-amber-500 to-amber-400'
-                    }`}
-                    style={{ width: `${Math.max(6, pct)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
       </div>
+
+      {/* ── Concepts Display ── */}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map((concept) => {
+            const pct = Math.round(concept.p_known * 100);
+            const isMastered = concept.p_known >= 0.85;
+            const isProgress = concept.p_known >= 0.40 && !isMastered;
+
+            let badgeBg = 'var(--bg-subtle)';
+            let badgeColor = 'var(--text-muted)';
+            let badgeBorder = 'var(--border-mid)';
+            let badgeLabel = 'Up Next';
+            let barColor = 'var(--text-muted)';
+
+            if (isMastered) {
+              badgeBg = 'var(--green-dim)';
+              badgeColor = 'var(--green)';
+              badgeBorder = 'var(--green-border)';
+              badgeLabel = 'Mastered 🏆';
+              barColor = 'var(--green)';
+            } else if (isProgress) {
+              badgeBg = 'var(--amber-dim)';
+              badgeColor = 'var(--amber)';
+              badgeBorder = 'var(--amber-border)';
+              badgeLabel = 'Developing ⚡';
+              barColor = 'var(--amber)';
+            }
+
+            return (
+              <div
+                key={concept.id}
+                onClick={() => onConceptClick && onConceptClick(concept)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && onConceptClick && onConceptClick(concept)}
+                className="p-4 rounded-lg flex flex-col justify-between cursor-pointer transition-all hover:shadow-md group"
+                style={{
+                  background: 'var(--bg-surface)',
+                  border: isMastered ? '1px solid var(--green-border)' : '1px solid var(--border-mid)',
+                }}
+              >
+                <div>
+                  {/* Card Header: Topic & Status */}
+                  <div className="flex items-center justify-between gap-2 mb-2.5">
+                    <span 
+                      className="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-semibold"
+                      style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: '1px solid var(--border-dim)' }}
+                    >
+                      {concept.topic}
+                    </span>
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded"
+                      style={{ background: badgeBg, color: badgeColor, border: `1px solid ${badgeBorder}` }}
+                    >
+                      {badgeLabel}
+                    </span>
+                  </div>
+
+                  {/* Concept Name */}
+                  <h3 
+                    className="text-sm font-semibold leading-snug mb-1 transition-colors group-hover:text-[var(--accent)]"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    {concept.name}
+                  </h3>
+                </div>
+
+                {/* Progress bar & calibration action */}
+                <div className="pt-3 mt-3" style={{ borderTop: '1px solid var(--border-dim)' }}>
+                  <div className="flex justify-between items-center mb-1.5 text-xs">
+                    <span className="font-mono text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                      P(L<sub>t</sub>) = {concept.p_known.toFixed(2)}
+                    </span>
+                    <span className="font-mono font-bold" style={{ color: isMastered ? 'var(--green)' : 'var(--text-primary)' }}>
+                      {pct}%
+                    </span>
+                  </div>
+
+                  {/* Progress bar line */}
+                  <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(6, pct)}%`,
+                        background: barColor,
+                      }}
+                    />
+                  </div>
+
+                  {/* Interactive calibration hint */}
+                  <div className="flex items-center justify-between mt-2.5 pt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                    <span className="flex items-center gap-1 group-hover:text-[var(--accent)] transition-colors">
+                      <PencilSimple size={11} />
+                      <span>Calibrate rating</span>
+                    </span>
+                    <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Table / List View */
+        <div className="rounded-lg overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-mid)' }}>
+                  <th className="py-3 px-4 font-semibold label-caps">Topic</th>
+                  <th className="py-3 px-4 font-semibold label-caps">Concept Name</th>
+                  <th className="py-3 px-4 font-semibold label-caps">Status</th>
+                  <th className="py-3 px-4 font-semibold label-caps">Mastery Probability P(L)</th>
+                  <th className="py-3 px-4 font-semibold label-caps text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: 'var(--border-dim)' }}>
+                {filtered.map((concept) => {
+                  const pct = Math.round(concept.p_known * 100);
+                  const isMastered = concept.p_known >= 0.85;
+                  const isProgress = concept.p_known >= 0.40 && !isMastered;
+
+                  return (
+                    <tr 
+                      key={concept.id}
+                      onClick={() => onConceptClick && onConceptClick(concept)}
+                      className="hover:bg-[var(--bg-subtle)] cursor-pointer transition-colors"
+                    >
+                      <td className="py-3 px-4 font-mono font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        <span className="px-2 py-0.5 rounded text-[10px]" style={{ background: 'var(--bg-base)', border: '1px solid var(--border-dim)' }}>
+                          {concept.topic.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-medium" style={{ color: 'var(--text-primary)' }}>
+                        {concept.name}
+                      </td>
+                      <td className="py-3 px-4">
+                        {isMastered ? (
+                          <span className="badge badge-emerald text-[10px]">Mastered</span>
+                        ) : isProgress ? (
+                          <span className="badge badge-amber text-[10px]">In Progress</span>
+                        ) : (
+                          <span className="badge badge-neutral text-[10px]">Up Next</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-subtle)' }}>
+                            <div 
+                              className="h-full rounded-full" 
+                              style={{ 
+                                width: `${Math.max(6, pct)}%`, 
+                                background: isMastered ? 'var(--green)' : isProgress ? 'var(--amber)' : 'var(--text-muted)' 
+                              }} 
+                            />
+                          </div>
+                          <span className="font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
+                            {pct}% ({concept.p_known.toFixed(2)})
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onConceptClick && onConceptClick(concept);
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-medium rounded transition-colors"
+                          style={{ background: 'var(--bg-subtle)', color: 'var(--accent)', border: '1px solid var(--border-mid)' }}
+                        >
+                          Calibrate
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {filtered.length === 0 && (
-        <div className="text-center py-20 text-gray-500 text-sm animate-fade-in">
+        <div className="text-center py-16 text-sm rounded-lg" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)', color: 'var(--text-muted)' }}>
           No concepts match your filter or search query.
         </div>
       )}
+
+      {/* ── BKT Mechanics Reference Note ── */}
+      <div className="mt-8 p-5 rounded-lg flex items-start gap-3.5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}>
+        <Info size={20} style={{ color: 'var(--indigo)', flexShrink: 0, marginTop: '2px' }} />
+        <div className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          <strong style={{ color: 'var(--text-primary)' }}>How Vidya evaluates mastery:</strong> Vidya uses a 4-parameter standard Bayesian Knowledge Tracing engine:
+          Prior mastery <em>P(L<sub>0</sub>) = 0.20</em>, Transition probability <em>P(T) = 0.15</em>, Slip <em>P(S) = 0.10</em>, and Guess <em>P(G) = 0.20</em>.
+          When you answer questions or calibrate via self-ratings, posterior probabilities update mathematically without LLM hallucinations. Concepts with <em>P(L<sub>t</sub>) &ge; 0.85</em> are considered mastered.
+        </div>
+      </div>
+
     </div>
   );
 }
+

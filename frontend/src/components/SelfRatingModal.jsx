@@ -27,81 +27,93 @@ export default function SelfRatingModal({ isOpen, concept, onClose, onSubmitRati
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(36, 49, 44, 0.5)', backdropFilter: 'blur(4px)' }}
     >
-      <div className="glass rounded-3xl p-1 w-full max-w-md animate-fade-in-up border border-white/10 shadow-2xl">
-        <div className="glass-card rounded-[1.35rem] p-6 sm:p-7">
-
-          {/* Header */}
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <span className="badge badge-emerald">
-              <HandHeart size={13} weight="fill" />
-              <span>Confidence Check-In</span>
-            </span>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="p-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-gray-400 hover:text-white transition-colors"
-            >
-              <X size={15} />
-            </button>
-          </div>
-
-          <h2 className="heading-section text-white text-lg font-bold mb-2">
-            How confident do you feel with{' '}
-            <span className="text-emerald-400">{concept.name}</span>?
-          </h2>
-
-          <p className="text-xs sm:text-sm text-gray-400 leading-relaxed mb-6">
-            Vidya factors your confidence rating alongside question performance into the BKT engine to tailor next challenges.
-          </p>
-
-          {/* Rating options */}
-          <div className="space-y-2 mb-6">
-            {LEVELS.map((lvl) => {
-              const isSelected = rating === lvl.value;
-              return (
-                <button
-                  key={lvl.value}
-                  onClick={() => setRating(lvl.value)}
-                  className={`w-full flex items-center justify-between p-3.5 rounded-2xl text-left border transition-all ${
-                    isSelected
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-white shadow-sm'
-                      : 'bg-white/[0.02] border-white/[0.06] text-gray-300 hover:bg-white/[0.05] hover:border-white/[0.12]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-base sm:text-lg">{lvl.emoji}</span>
-                    <div>
-                      <div className="text-xs sm:text-sm font-semibold text-white">{lvl.label}</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">{lvl.desc}</div>
-                    </div>
-                  </div>
-                  <span
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono font-bold shrink-0 transition-colors ${
-                      isSelected
-                        ? 'bg-emerald-400 text-black'
-                        : 'bg-white/[0.06] border border-white/[0.1] text-gray-400'
-                    }`}
-                  >
-                    {lvl.value}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Action */}
+      <div 
+        className="w-full max-w-md rounded-xl p-6 sm:p-7 animate-fade-in-up shadow-2xl"
+        style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-mid)' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <span className="badge badge-emerald">
+            <HandHeart size={13} weight="fill" />
+            <span>Confidence Calibration</span>
+          </span>
           <button
-            id="self-rating-submit"
-            disabled={submitting}
-            onClick={handleSubmit}
-            className="btn btn-primary w-full py-3 text-xs sm:text-sm font-bold shadow-lg hover:shadow-emerald-500/25"
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1.5 rounded transition-colors"
+            style={{ color: 'var(--text-muted)' }}
           >
-            {submitting ? 'Updating BKT Prior Beliefs...' : 'Save & Continue'}
+            <X size={16} />
           </button>
         </div>
+
+        <h2 
+          className="text-xl font-medium mb-2 leading-snug"
+          style={{ fontFamily: 'Newsreader, Georgia, serif', color: 'var(--text-primary)' }}
+        >
+          How confident do you feel with{' '}
+          <span style={{ color: 'var(--accent)' }}>{concept.name}</span>?
+        </h2>
+
+        <p className="text-xs sm:text-sm leading-relaxed mb-6" style={{ color: 'var(--text-secondary)' }}>
+          Vidya blends your rating (30% weight) with question history (70% weight) into the BKT engine to choose your next optimal challenge.
+        </p>
+
+        {/* Rating options */}
+        <div className="space-y-2 mb-6">
+          {LEVELS.map((lvl) => {
+            const isSelected = rating === lvl.value;
+            return (
+              <button
+                key={lvl.value}
+                onClick={() => setRating(lvl.value)}
+                className="w-full flex items-center justify-between p-3 rounded-lg text-left transition-all"
+                style={{
+                  background: isSelected ? 'var(--accent-dim)' : 'var(--bg-subtle)',
+                  border: isSelected ? '1px solid var(--accent-border)' : '1px solid var(--border-dim)',
+                  color: isSelected ? 'var(--accent-text)' : 'var(--text-primary)'
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{lvl.emoji}</span>
+                  <div>
+                    <div className="text-xs sm:text-sm font-semibold" style={{ color: isSelected ? 'var(--accent)' : 'var(--text-primary)' }}>
+                      {lvl.label}
+                    </div>
+                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {lvl.desc}
+                    </div>
+                  </div>
+                </div>
+                <span
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono font-bold shrink-0"
+                  style={{
+                    background: isSelected ? 'var(--accent)' : 'var(--bg-surface)',
+                    color: isSelected ? '#ffffff' : 'var(--text-muted)',
+                    border: isSelected ? 'none' : '1px solid var(--border-mid)'
+                  }}
+                >
+                  {lvl.value}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Action button */}
+        <button
+          id="self-rating-submit"
+          disabled={submitting}
+          onClick={handleSubmit}
+          className="btn btn-primary w-full py-2.5 text-xs sm:text-sm font-bold"
+        >
+          {submitting ? 'Updating BKT Prior Beliefs...' : 'Calibrate & Save'}
+        </button>
       </div>
     </div>
   );
 }
+

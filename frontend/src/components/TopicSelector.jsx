@@ -68,7 +68,22 @@ export default function TopicSelector({ onSelectTopic, loading }) {
           {TOPICS.map((topic, index) => {
             const Icon = topic.icon;
             return (
-              <article key={topic.id} className={`path-row path-${topic.id}`}>
+              <article
+                key={topic.id}
+                id={`start-${topic.id}`}
+                role="button"
+                tabIndex={loading ? -1 : 0}
+                aria-disabled={loading}
+                aria-label={`Start ${topic.name}`}
+                onClick={() => !loading && onSelectTopic(topic.id)}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ' ') && !loading) {
+                    e.preventDefault();
+                    onSelectTopic(topic.id);
+                  }
+                }}
+                className={`path-row path-${topic.id}${loading ? ' is-loading' : ''}`}
+              >
                 <span className="path-number">0{index + 1}</span>
                 <div className="path-icon"><Icon size={23} weight="regular" /></div>
                 <div className="path-main">
@@ -79,16 +94,6 @@ export default function TopicSelector({ onSelectTopic, loading }) {
                 <div className="path-concepts" aria-label="Topics covered">
                   {topic.topicsCovered.map((concept) => <span key={concept}>{concept}</span>)}
                 </div>
-                <button
-                  disabled={loading}
-                  onClick={() => onSelectTopic(topic.id)}
-                  id={`start-${topic.id}`}
-                  className="path-start"
-                  aria-label={`Start ${topic.name}`}
-                  title={`Start ${topic.name}`}
-                >
-                  <ArrowRight size={19} weight="regular" />
-                </button>
               </article>
             );
           })}

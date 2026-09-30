@@ -26,19 +26,79 @@ export default function App() {
   const [selfRatingModalOpen, setSelfRatingModalOpen] = useState(false);
   const [selfRatingConcept, setSelfRatingConcept] = useState(null);
 
-  // Restore stored session if present in localStorage
+  // Map tabs to URL hashes
+  const tabToHash = {
+    selector: '#home',
+    tutor: '#practice',
+    mastery: '#progress',
+    trace: '#history',
+  };
+
+  const hashToTab = {
+    '': 'selector',
+    '#': 'selector',
+    '#home': 'selector',
+    '#practice': 'tutor',
+    '#progress': 'mastery',
+    '#history': 'trace',
+  };
+
+  const changeTab = (tab, pushHistory = true) => {
+    setActiveTab(tab);
+    const hash = tabToHash[tab] || '#home';
+    if (pushHistory) {
+      if (window.location.hash !== hash) {
+        window.location.hash = hash;
+      }
+    } else {
+      if (window.location.hash !== hash) {
+        window.history.replaceState({ tab }, '', hash);
+      }
+    }
+  };
+
+  // Synchronize activeTab with URL hash changes (Back/Forward browser buttons)
   useEffect(() => {
+    const syncFromUrl = () => {
+      const hash = window.location.hash || '';
+      const targetTab = hashToTab[hash] || 'selector';
+      setActiveTab(targetTab);
+    };
+
+    window.addEventListener('hashchange', syncFromUrl);
+    window.addEventListener('popstate', syncFromUrl);
+
+    // Initial load from storage and URL hash
     const saved = localStorage.getItem('vidya_session');
+    const initialHash = window.location.hash || '';
+    const initialTab = hashToTab[initialHash];
+
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         setSession(parsed);
-        setActiveTab('tutor');
+        const resolvedTab = initialTab || 'tutor';
+        setActiveTab(resolvedTab);
+        if (!initialHash) {
+          window.history.replaceState({ tab: resolvedTab }, '', tabToHash[resolvedTab]);
+        }
         refreshSessionData(parsed.session_id);
       } catch (e) {
         localStorage.removeItem('vidya_session');
+        setActiveTab('selector');
+      }
+    } else {
+      const resolvedTab = initialTab || 'selector';
+      setActiveTab(resolvedTab);
+      if (!initialHash) {
+        window.history.replaceState({ tab: resolvedTab }, '', tabToHash[resolvedTab]);
       }
     }
+
+    return () => {
+      window.removeEventListener('hashchange', syncFromUrl);
+      window.removeEventListener('popstate', syncFromUrl);
+    };
   }, []);
 
   const refreshSessionData = async (sessionId) => {
@@ -71,7 +131,7 @@ export default function App() {
       setSession(res);
       localStorage.setItem('vidya_session', JSON.stringify(res));
       await refreshSessionData(res.session_id);
-      setActiveTab('tutor');
+      changeTab('tutor', true);
     } catch (err) {
       setError(`Connection failed — make sure the backend is running at http://localhost:8000`);
     } finally {
@@ -103,7 +163,7 @@ export default function App() {
     setCurrentConcept(null);
     setMasteryData(null);
     setTraceData(null);
-    setActiveTab('selector');
+    changeTab('selector', true);
   };
 
   const handleNextQuestion = async () => {
@@ -145,9 +205,10 @@ export default function App() {
       {/* Navigation */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={changeTab}
         session={session}
         onResetSession={handleResetSession}
+        onGoHome={() => changeTab('selector', true)}
         overallMastery={overallMastery}
       />
 
