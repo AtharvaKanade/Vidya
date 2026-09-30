@@ -37,7 +37,7 @@ export default function TopicSelector({ onSelectTopic, loading }) {
           <h1>AI makes more sense<br /><span>one idea at a time.</span></h1>
           <p>Choose a subject. We’ll find a good first question and take it from there.</p>
           <button
-            onClick={() => onSelectTopic(null)}
+            onClick={() => onSelectTopic(null, 'Full AI & Machine Learning Curriculum')}
             disabled={loading}
             className="study-all-link"
             id="start-all-topics"
@@ -46,11 +46,22 @@ export default function TopicSelector({ onSelectTopic, loading }) {
           </button>
         </div>
         <div className="study-doodle" aria-hidden="true">
+          <svg className="doodle-canvas" viewBox="0 0 320 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Organic boundary loop */}
+            <path
+              d="M 160,24 C 248,20 292,54 286,114 C 280,162 212,172 148,168 C 80,164 34,136 38,86 C 42,42 86,28 160,24 Z"
+              stroke="#cbd8ce"
+              strokeWidth="1.2"
+            />
+            {/* Connectors between nodes */}
+            <line x1="58" y1="60" x2="140" y2="108" stroke="#9eb2a4" strokeWidth="1.25" />
+            <line x1="180" y1="108" x2="262" y2="60" stroke="#9eb2a4" strokeWidth="1.25" />
+            {/* Subtle cycle connector */}
+            <path d="M 260,42 C 200,16 120,16 60,42" stroke="#cbd8ce" strokeWidth="1" strokeDasharray="3 3" />
+          </svg>
           <span className="doodle-node node-one"><Network size={20} /></span>
           <span className="doodle-node node-two"><Cpu size={20} /></span>
           <span className="doodle-node node-three"><Database size={20} /></span>
-          <span className="doodle-line line-one" />
-          <span className="doodle-line line-two" />
           <span className="doodle-note">start anywhere<br />keep the useful bits</span>
         </div>
       </section>
@@ -75,11 +86,11 @@ export default function TopicSelector({ onSelectTopic, loading }) {
                 tabIndex={loading ? -1 : 0}
                 aria-disabled={loading}
                 aria-label={`Start ${topic.name}`}
-                onClick={() => !loading && onSelectTopic(topic.id)}
+                onClick={() => !loading && onSelectTopic(topic.id, topic.name)}
                 onKeyDown={(e) => {
                   if ((e.key === 'Enter' || e.key === ' ') && !loading) {
                     e.preventDefault();
-                    onSelectTopic(topic.id);
+                    onSelectTopic(topic.id, topic.name);
                   }
                 }}
                 className={`path-row path-${topic.id}${loading ? ' is-loading' : ''}`}

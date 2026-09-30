@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import TopicSelector from './components/TopicSelector';
 import TutorView from './components/TutorView';
+import TutorSkeleton from './components/TutorSkeleton';
 import MasteryMap from './components/MasteryMap';
 import TraceViewer from './components/TraceViewer';
 import SelfRatingModal from './components/SelfRatingModal';
@@ -23,6 +24,7 @@ export default function App() {
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem('vidya_user_email') || '');
   const [session, setSession] = useState(null);
   const [activeTab, setActiveTab] = useState('selector'); // 'selector' | 'tutor' | 'mastery' | 'trace'
+  const [selectedTopicName, setSelectedTopicName] = useState('');
   const [currentConcept, setCurrentConcept] = useState(null);
   const [masteryData, setMasteryData] = useState(null);
   const [traceData, setTraceData] = useState(null);
@@ -129,17 +131,27 @@ export default function App() {
     }
   };
 
-  const handleStartSession = async (topicId) => {
+  const TOPIC_NAMES = {
+    nn: 'Neural Networks & Deep Learning',
+    tr: 'Transformers & LLM Architecture',
+    rag: 'RAG & Applied AI Systems',
+  };
+
+  const handleStartSession = async (topicId, topicName = null) => {
+    const resolvedName = topicName || (topicId ? TOPIC_NAMES[topicId] : 'All Curriculum Topics');
+    setSelectedTopicName(resolvedName);
     setLoading(true);
     setError(null);
+    changeTab('tutor', true);
+
     try {
       const res = await startSession(topicId);
       setSession(res);
       localStorage.setItem('vidya_session', JSON.stringify(res));
       await refreshSessionData(res.session_id);
-      changeTab('tutor', true);
     } catch (err) {
       setError(`Connection failed — make sure the backend is running at http://localhost:8000`);
+      changeTab('selector', true);
     } finally {
       setLoading(false);
     }
@@ -280,16 +292,21 @@ export default function App() {
         )}
 
         {/* View Router */}
-        {activeTab === 'selector' || !session ? (
+        {activeTab === 'selector' && !loading && !session ? (
           <TopicSelector onSelectTopic={handleStartSession} loading={loading} />
-        ) : activeTab === 'tutor' ? (
-          <TutorView
-            session={session}
-            currentConcept={currentConcept}
-            onAnswerSubmitted={handleAnswerSubmit}
-            onNextQuestion={handleNextQuestion}
-            loadingNext={loading}
-          />
+        ) : activeTab === 'tutor' || (loading && !session) ? (
+          !currentConcept || (loading && !session) ? (
+            <TutorSkeleton topicName={selectedTopicName} />
+          ) : (
+            <TutorView
+              session={session}
+              currentConcept={currentConcept}
+              onAnswerSubmitted={handleAnswerSubmit}
+              onNextQuestion={handleNextQuestion}
+              loadingNext={loading}
+              topicName={selectedTopicName}
+            />
+          )
         ) : activeTab === 'mastery' ? (
           <MasteryMap
             masteryData={masteryData}
@@ -303,7 +320,9 @@ export default function App() {
             traceData={traceData}
             onRefresh={() => session && getTraces(session.session_id).then(setTraceData)}
           />
-        ) : null}
+        ) : (
+          <TopicSelector onSelectTopic={handleStartSession} loading={loading} />
+        )}
       </main>
 
       {/* Self-rating modal */}

@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react';
 import { getExplanation } from '../api';
 import FormattedExplanation from './FormattedExplanation';
+import TutorSkeleton from './TutorSkeleton';
 
 const STYLE_OPTIONS = [
   { id: 'default', label: 'Intuition', icon: BookOpen },
@@ -20,7 +21,8 @@ export default function TutorView({
   currentConcept,
   onAnswerSubmitted,
   onNextQuestion,
-  loadingNext
+  loadingNext,
+  topicName = null
 }) {
   const [selectedOption, setSelectedOption] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -91,21 +93,9 @@ export default function TutorView({
     setStartTime(Date.now());
   }, [currentConcept?.concept_id, currentConcept?.question?.id]);
 
-  // Loading state
-  if (!currentConcept) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 pt-36 text-center animate-fade-in">
-        <div
-          className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin"
-          style={{ background: 'var(--green-dim)', border: '1px solid var(--green-border)' }}
-        >
-          <Brain size={22} style={{ color: 'var(--green)' }} />
-        </div>
-        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-          Selecting optimal challenge for your current skill level...
-        </p>
-      </div>
-    );
+  // Loading skeleton state
+  if (!currentConcept || loadingNext) {
+    return <TutorSkeleton topicName={topicName || currentConcept?.topic_name || currentConcept?.concept_name} />;
   }
 
   const questionItem = currentConcept.question || {
