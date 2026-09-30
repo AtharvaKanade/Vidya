@@ -16,11 +16,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.bkt import DEFAULT_PARAMS, mastery_level, update as bkt_update
 from backend.app.db import (
-    append_trace,
     create_session,
     get_all_mastery,
     get_mastery,
-    get_next_trace_step,
     get_recent_attempts,
     get_session,
     get_traces,
@@ -31,15 +29,22 @@ from backend.app.db import (
 from backend.app.models import (
     AnswerRequest,
     AnswerResponse,
+    ExplainRequest,
+    ExplainResponse,
     MasteryConceptItem,
     MasteryResponse,
     NextConceptResponse,
     QuestionPayload,
+    SelfRateRequest,
+    SelfRateResponse,
     SessionStartRequest,
     SessionStartResponse,
     TraceResponse,
     TraceStepItem,
 )
+from backend.app.selector import check_uncertainty_rule, select_next_concept
+from backend.app.trace import log_event
+from backend.app.tutor import STYLES, explain as tutor_explain
 
 # Load environment configuration
 load_dotenv()
@@ -82,7 +87,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Vidya AI Tutor API",
     description="Bayesian Knowledge Tracing (BKT) powered adaptive AI tutor engine.",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -102,7 +107,7 @@ app.add_middleware(
 @app.get("/health", tags=["Health"])
 async def health_check() -> Dict[str, str]:
     """Health check endpoint."""
-    return {"status": "healthy", "service": "vidya-backend"}
+    return {"status": "healthy", "service": "vidya-backend", "version": "0.2.0"}
 
 
 @app.post(
@@ -133,12 +138,10 @@ async def start_session(payload: Optional[SessionStartRequest] = None) -> Sessio
         set_mastery(session_id, c["id"], DEFAULT_PARAMS.p_init)
 
     # Log initial trace
-    append_trace(
-        trace_id=str(uuid.uuid4()),
+    log_event(
         session_id=session_id,
-        step=1,
+        action="session_start",
         payload={
-            "action": "session_start",
             "topic": topic,
             "concepts_initialized": len(active_concepts),
             "p_init": DEFAULT_PARAMS.p_init,
@@ -154,7 +157,7 @@ async def start_session(payload: Optional[SessionStartRequest] = None) -> Sessio
     tags=["Tutor"],
 )
 async def get_next_concept(session_id: str) -> NextConceptResponse:
-    """Select the next concept and difficulty level for the learner."""
+    """Select the next optimal concept, difficulty level, and practice item."""
     session = get_session(session_id)
     if not session:
         raise HTTPException(
@@ -165,51 +168,25 @@ async def get_next_concept(session_id: str) -> NextConceptResponse:
     topic_filter = session.get("topic")
     mastery_map = get_all_mastery(session_id)
 
-    # Filter concepts by session topic if set
-    eligible_concepts = (
-        [c for c in CONCEPTS_LIST if c.get("topic") == topic_filter]
-        if topic_filter
-        else CONCEPTS_LIST
+    # Use priority scoring selector module
+    selected_concept, difficulty = select_next_concept(
+        concepts=CONCEPTS_LIST,
+        mastery_map=mastery_map,
+        topic_filter=topic_filter,
+        params=DEFAULT_PARAMS,
     )
-
-    # Day 1 Selector: Pick the first unlocked non-mastered concept, or weakest concept
-    selected_concept = None
-    for concept in eligible_concepts:
-        c_id = concept["id"]
-        p_known = mastery_map.get(c_id, DEFAULT_PARAMS.p_init)
-        if p_known < 0.85:
-            # Check prerequisites: all prereqs must be >= 0.60
-            prereqs_met = True
-            for prereq_id in concept.get("prereqs", []):
-                prereq_p = mastery_map.get(prereq_id, DEFAULT_PARAMS.p_init)
-                if prereq_p < 0.60:
-                    prereqs_met = False
-                    break
-            if prereqs_met:
-                selected_concept = concept
-                break
-
-    # Fallback if all unlocked are mastered or none found
-    if not selected_concept:
-        selected_concept = eligible_concepts[0]
 
     c_id = selected_concept["id"]
     current_p = mastery_map.get(c_id, DEFAULT_PARAMS.p_init)
-
-    # Difficulty thresholds (MVP §4.2)
-    if current_p < 0.40:
-        difficulty = 1
-    elif current_p < 0.70:
-        difficulty = 2
-    else:
-        difficulty = 3
-
     level = mastery_level(current_p)
 
+    # Check uncertainty rule for Human Approval Line (Proof #3)
+    recent_concept_attempts = get_recent_attempts(session_id, concept_id=c_id, limit=6)
+    needs_self_rating = check_uncertainty_rule(recent_concept_attempts, current_p)
+
     # Question Selection: Filter question bank for this concept
-    # 1. Exclude already answered question IDs in this session
-    recent_attempts = get_recent_attempts(session_id, limit=200)
-    answered_q_ids = {a["question_id"] for a in recent_attempts}
+    recent_attempts_all = get_recent_attempts(session_id, limit=200)
+    answered_q_ids = {a["question_id"] for a in recent_attempts_all}
 
     concept_questions = [q for q in QUESTIONS_LIST if q.get("concept") == c_id]
     unanswered_q = [q for q in concept_questions if q["id"] not in answered_q_ids]
@@ -237,6 +214,20 @@ async def get_next_concept(session_id: str) -> NextConceptResponse:
             explanation_hint=selected_q_dict.get("explanation_hint"),
         )
 
+    log_event(
+        session_id=session_id,
+        action="next_concept_selected",
+        payload={
+            "concept_id": c_id,
+            "concept_name": selected_concept["name"],
+            "difficulty": difficulty,
+            "p_known": round(current_p, 4),
+            "needs_self_rating": needs_self_rating,
+            "question_id": question_payload.id if question_payload else None,
+        },
+        flagged=needs_self_rating,
+    )
+
     return NextConceptResponse(
         session_id=session_id,
         concept_id=c_id,
@@ -245,6 +236,8 @@ async def get_next_concept(session_id: str) -> NextConceptResponse:
         difficulty=difficulty,
         p_known=round(current_p, 4),
         mastery_level=level,
+        needs_self_rating=needs_self_rating,
+        importance=float(selected_concept.get("importance", 1.0)),
         question=question_payload,
     )
 
@@ -291,22 +284,24 @@ async def submit_answer(session_id: str, answer: AnswerRequest) -> AnswerRespons
         latency_ms=answer.latency_ms,
     )
 
-    # Check re-explain rule (2 wrong answers on same concept)
-    recent = get_recent_attempts(session_id, concept_id=concept_id, limit=2)
+    # Check re-explain rule (after consecutive wrong attempts, rotate styles)
+    recent = get_recent_attempts(session_id, concept_id=concept_id, limit=6)
     re_explain = False
     explanation_style = None
-    if len(recent) >= 2 and all(not a["correct"] for a in recent):
+
+    if len(recent) >= 2 and all(not a["correct"] for a in recent[:2]):
         re_explain = True
-        explanation_style = "analogy"  # Day 2 rotates: analogy -> worked_example -> step_by_step
+        wrong_count = sum(1 for a in recent if not a["correct"])
+        # Rotate explanation styles: analogy -> worked_example -> step_by_step
+        style_cycle = ["analogy", "worked_example", "step_by_step"]
+        style_idx = (wrong_count - 2) % len(style_cycle)
+        explanation_style = style_cycle[style_idx]
 
     # Structured turn audit trace
-    step_num = get_next_trace_step(session_id)
-    append_trace(
-        trace_id=str(uuid.uuid4()),
+    log_event(
         session_id=session_id,
-        step=step_num,
+        action="answer_attempt",
         payload={
-            "action": "answer_attempt",
             "concept_id": concept_id,
             "question_id": answer.question_id,
             "correct": answer.correct,
@@ -317,6 +312,7 @@ async def submit_answer(session_id: str, answer: AnswerRequest) -> AnswerRespons
             "re_explain": re_explain,
             "explanation_style": explanation_style,
         },
+        flagged=(not answer.correct and re_explain),
     )
 
     return AnswerResponse(
@@ -328,6 +324,126 @@ async def submit_answer(session_id: str, answer: AnswerRequest) -> AnswerRespons
         mastery_level=level_after,
         re_explain=re_explain,
         explanation_style=explanation_style,
+    )
+
+
+@app.post(
+    "/session/{session_id}/explain",
+    response_model=ExplainResponse,
+    tags=["Tutor"],
+)
+async def generate_explanation(session_id: str, req: ExplainRequest) -> ExplainResponse:
+    """Generate or retrieve an adaptive LLM explanation for a concept."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session '{session_id}' not found.",
+        )
+
+    concept_dict = CONCEPTS_BY_ID.get(req.concept_id)
+    if not concept_dict:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown concept '{req.concept_id}'.",
+        )
+
+    p_known = get_mastery(session_id, req.concept_id)
+    if p_known is None:
+        p_known = DEFAULT_PARAMS.p_init
+
+    recent = get_recent_attempts(session_id, concept_id=req.concept_id, limit=5)
+    wrong_q_ids = [a["question_id"] for a in recent if not a["correct"]]
+
+    style = req.style if req.style in STYLES else "default"
+    explanation_text, from_cache, is_fallback = tutor_explain(
+        concept_name=concept_dict["name"],
+        concept_id=req.concept_id,
+        p_known=p_known,
+        wrong_answers=wrong_q_ids,
+        style=style,
+        concept_desc=concept_dict.get("description"),
+    )
+
+    log_event(
+        session_id=session_id,
+        action="explanation_generated",
+        payload={
+            "concept_id": req.concept_id,
+            "style": style,
+            "from_cache": from_cache,
+            "is_fallback": is_fallback,
+            "p_known": round(p_known, 4),
+        },
+    )
+
+    return ExplainResponse(
+        session_id=session_id,
+        concept_id=req.concept_id,
+        concept_name=concept_dict["name"],
+        style=style,
+        explanation=explanation_text,
+        from_cache=from_cache,
+        is_fallback=is_fallback,
+    )
+
+
+@app.post(
+    "/session/{session_id}/self-rate",
+    response_model=SelfRateResponse,
+    tags=["Tutor"],
+)
+async def submit_self_rating(session_id: str, req: SelfRateRequest) -> SelfRateResponse:
+    """Submit learner self-rating and blend into Bayesian knowledge model (Human Approval Line)."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session '{session_id}' not found.",
+        )
+
+    if req.concept_id not in CONCEPTS_BY_ID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown concept '{req.concept_id}'.",
+        )
+
+    p_before = get_mastery(session_id, req.concept_id)
+    if p_before is None:
+        p_before = DEFAULT_PARAMS.p_init
+
+    # Normalise rating (1..5) to [0.0..1.0]
+    rating_norm = (req.rating - 1.0) / 4.0
+    # Blend: 70% BKT posterior + 30% human self-rating (MVP §4.2)
+    p_after = round(0.70 * p_before + 0.30 * rating_norm, 4)
+    # Clamp safely
+    p_after = max(0.0, min(1.0, p_after))
+    level_after = mastery_level(p_after)
+
+    set_mastery(session_id, req.concept_id, p_after)
+
+    log_event(
+        session_id=session_id,
+        action="self_rating_blended",
+        payload={
+            "concept_id": req.concept_id,
+            "rating": req.rating,
+            "rating_norm": rating_norm,
+            "p_known_before": round(p_before, 4),
+            "p_known_after": round(p_after, 4),
+            "mastery_level": level_after,
+        },
+        flagged=True,
+    )
+
+    return SelfRateResponse(
+        session_id=session_id,
+        concept_id=req.concept_id,
+        rating=req.rating,
+        p_known_before=round(p_before, 4),
+        p_known_after=round(p_after, 4),
+        mastery_level=level_after,
+        flagged=True,
     )
 
 

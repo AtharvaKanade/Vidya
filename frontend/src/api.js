@@ -56,6 +56,26 @@ export async function submitAnswer(sessionId, { conceptId, questionId, correct, 
   });
 }
 
+export async function getExplanation(sessionId, conceptId, style = 'default') {
+  return fetchJson(`/session/${sessionId}/explain`, {
+    method: 'POST',
+    body: JSON.stringify({
+      concept_id: conceptId,
+      style,
+    }),
+  });
+}
+
+export async function submitSelfRating(sessionId, conceptId, rating) {
+  return fetchJson(`/session/${sessionId}/self-rate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      concept_id: conceptId,
+      rating: parseInt(rating, 10),
+    }),
+  });
+}
+
 export async function getMastery(sessionId) {
   return fetchJson(`/session/${sessionId}/mastery`);
 }

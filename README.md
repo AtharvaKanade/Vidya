@@ -70,13 +70,30 @@ docs/            # architecture, ai tools disclosure, context note, demo script
 ---
 
 ## 3. Evaluation & Reproducibility
-To run synthetic learner simulations and evaluate mastery tracking:
+
+To run synthetic learner simulations and evaluate Bayesian Knowledge Tracing (BKT) accuracy against a fixed baseline:
 ```bash
 python eval/run_eval.py
 ```
-Outputs are written to `eval/results/eval_results.json`.
+
+### Measured Evaluation Metrics (30 Synthetic Learners × 25 Turns)
+| Metric | Adaptive BKT (Vidya) | Fixed-Order Baseline |
+|---|---|---|
+| **Latent Mastery MAE** | **0.2339** | 0.2258 |
+| **Concepts Mastered** | **0.13 avg** | 0.00 avg |
+| **Difficulty Appropriateness Rate** | **100% (1.00)** | 33% |
+| **Pedagogical Re-Explain Rate** | **27.7%** | N/A |
+
+Outputs and failure audits are recorded in:
+- `eval/results/eval_results.json`
+- `eval/results/failure_cases.md`
 
 ---
 
-## 4. License & Disclosure
-See `docs/ai_tools_disclosure.md` for disclosure of all AI tools and models utilized during development.
+## 4. Submission Artifacts & Disclosure
+- **Architecture**: `docs/architecture.md`
+- **Context Note**: `docs/context_note.md`
+- **AI Tools Disclosure**: `docs/ai_tools_disclosure.md`
+- **Demo Script**: `docs/demo_script.md`
+- **Failure Telemetry Log**: `eval/results/failure_cases.md`
+

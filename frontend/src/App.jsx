@@ -10,7 +10,8 @@ import {
   getNextConcept, 
   submitAnswer, 
   getMastery, 
-  getTraces 
+  getTraces,
+  submitSelfRating
 } from './api';
 import { WarningCircle, X } from '@phosphor-icons/react';
 
@@ -50,6 +51,12 @@ export default function App() {
       setCurrentConcept(nextRes);
       setMasteryData(masteryRes);
       setTraceData(traceRes);
+
+      // Auto-trigger self-rating if uncertainty rule flagged
+      if (nextRes?.needs_self_rating) {
+        setSelfRatingConcept({ id: nextRes.concept_id, name: nextRes.concept_name });
+        setSelfRatingModalOpen(true);
+      }
     } catch (err) {
       console.error('Failed refreshing session data', err);
       setError(err.message);
@@ -105,6 +112,10 @@ export default function App() {
     try {
       const nextRes = await getNextConcept(session.session_id);
       setCurrentConcept(nextRes);
+      if (nextRes?.needs_self_rating) {
+        setSelfRatingConcept({ id: nextRes.concept_id, name: nextRes.concept_name });
+        setSelfRatingModalOpen(true);
+      }
     } catch (err) {
       console.error('Failed fetching next concept', err);
       setError(err.message);
@@ -114,9 +125,13 @@ export default function App() {
   };
 
   const handleSelfRatingSubmit = async (conceptId, rating) => {
-    console.log(`Self-rating for ${conceptId}: ${rating}`);
-    if (session) {
+    if (!session) return;
+    try {
+      await submitSelfRating(session.session_id, conceptId, rating);
       await refreshSessionData(session.session_id);
+    } catch (err) {
+      console.error('Failed submitting self-rating', err);
+      setError('Could not update self-rating: ' + err.message);
     }
   };
 
@@ -170,6 +185,7 @@ export default function App() {
           <TopicSelector onSelectTopic={handleStartSession} loading={loading} />
         ) : activeTab === 'tutor' ? (
           <TutorView
+            session={session}
             currentConcept={currentConcept}
             onAnswerSubmitted={handleAnswerSubmit}
             onNextQuestion={handleNextQuestion}

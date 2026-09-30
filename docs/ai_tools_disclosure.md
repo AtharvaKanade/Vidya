@@ -9,7 +9,7 @@ In compliance with BFWAI/HACK 26 guidelines and GEMINI.md Section 11, this docum
 - **Claude Sonnet 4.6**: Used during initial requirements synthesis and design review.
 
 ## 2. Product Runtime Models & APIs
-- **Google Gemini API (`gemini-1.5-flash`)**: Used strictly in `backend/app/tutor.py` for generating concise pedagogical explanations and dynamic practice questions based on Bayesian Knowledge Tracing (BKT) signals. The LLM has no authority over mastery state or concept progression decisions.
+- **Google Gemini API (`gemini-2.0-flash`)**: Used strictly in `backend/app/tutor.py` for generating concise pedagogical explanations and dynamic practice questions based on Bayesian Knowledge Tracing (BKT) signals. The LLM has no authority over mastery state or concept progression decisions.
 
 ## 3. Libraries & Dependencies
 - **FastAPI / Pydantic**: Backend framework and schema validation.
