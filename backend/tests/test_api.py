@@ -10,6 +10,7 @@ from backend.app.db import init_db
 def setup_test_db(tmp_path, monkeypatch):
     """Use an isolated temporary SQLite database for each test."""
     test_db = tmp_path / "test_vidya.db"
+    monkeypatch.setenv("DATABASE_URL", "")
     monkeypatch.setattr("backend.app.db.DB_PATH", test_db)
     init_db(test_db)
 

@@ -1,4 +1,8 @@
-"""Database persistence layer supporting both SQLite (local/testing) and PostgreSQL (Supabase/Neon/Cloud)."""
+"""Database persistence layer supporting both SQLite (local/testing) and PostgreSQL (Supabase/Neon/Cloud).
+
+Provides unified storage for users, auth sessions, attempts, BKT mastery states, audit traces, and question banks.
+Optimized for low-latency network connections with connection pooling and multi-statement batching.
+"""
 
 import base64
 import hashlib
@@ -11,19 +15,39 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+
 DB_PATH = Path(__file__).resolve().parent.parent.parent / "vidya.db"
+_PG_POOL = None
 
 
 def is_postgres(db_path: Optional[Any] = None) -> bool:
-    """Check if PostgreSQL (Supabase/Neon) is configured in environment."""
-    if db_path is not None and isinstance(db_path, Path):
+    """Check if PostgreSQL (Supabase/Neon) is configured in environment and not overridden by local path."""
+    if db_path is not None and isinstance(db_path, (Path, str)):
         return False
     db_url = os.getenv("DATABASE_URL", "").strip()
     return db_url.startswith("postgresql://") or db_url.startswith("postgres://")
 
 
+def get_pg_pool():
+    """Get or initialize thread-safe PostgreSQL connection pool."""
+    global _PG_POOL
+    if _PG_POOL is None or getattr(_PG_POOL, "closed", True):
+        import psycopg2.pool
+        from psycopg2.extras import RealDictCursor
+
+        db_url = os.getenv("DATABASE_URL", "").strip()
+        _PG_POOL = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10,
+            dsn=db_url,
+            cursor_factory=RealDictCursor,
+            connect_timeout=10,
+        )
+    return _PG_POOL
+
+
 def get_pg_connection():
-    """Create a psycopg2 connection to PostgreSQL / Supabase with dict cursor."""
+    """Create a single psycopg2 connection to PostgreSQL / Supabase with RealDictCursor."""
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
@@ -44,26 +68,42 @@ def get_sqlite_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
 
 
 class QueryExecutor:
-    """Unified query executor adapting between SQLite (?) and PostgreSQL (%s)."""
+    """Unified query executor adapting between SQLite (?) and PostgreSQL (%s) with connection pooling."""
 
     def __init__(self, db_path: Optional[Path] = None):
         self.use_pg = is_postgres(db_path)
         self.db_path = db_path
-        self.conn = get_pg_connection() if self.use_pg else get_sqlite_connection(db_path)
+        self._pool = None
+        if self.use_pg:
+            try:
+                self._pool = get_pg_pool()
+                self.conn = self._pool.getconn()
+            except Exception:
+                self._pool = None
+                self.conn = get_pg_connection()
+        else:
+            self.conn = get_sqlite_connection(db_path)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is not None:
-            self.conn.rollback()
-        else:
-            self.conn.commit()
-        self.conn.close()
+        try:
+            if exc_type is not None:
+                self.conn.rollback()
+            else:
+                self.conn.commit()
+        finally:
+            if self.use_pg and self._pool is not None:
+                try:
+                    self._pool.putconn(self.conn)
+                except Exception:
+                    pass
+            elif not self.use_pg:
+                self.conn.close()
 
     def _format_sql(self, sql: str) -> str:
         if self.use_pg:
-            # Convert SQLite parameter ? to Postgres %s
             return sql.replace("?", "%s")
         return sql
 
@@ -118,194 +158,174 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return False
 
 
-def _seed_demo_user_sqlite(conn: sqlite3.Connection) -> None:
-    """Seed default demo learner account for instant testing if not already present."""
+def _seed_demo_user(db_path: Optional[Path] = None) -> None:
+    """Seed default demo learner account (demo@vidya.ai / demo1234) for instant testing if not present."""
     demo_email = "demo@vidya.ai"
-    existing = conn.execute("SELECT id, password_hash FROM users WHERE email = ?", (demo_email,)).fetchone()
-    if not existing:
-        demo_id = str(uuid.uuid4())
-        created_at = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            "INSERT INTO users (id, email, password_hash, created_at, name) VALUES (?, ?, ?, ?, ?)",
-            (demo_id, demo_email, hash_password("demo1234"), created_at, "Demo Learner"),
-        )
-    else:
-        if not verify_password("demo1234", existing["password_hash"]):
-            conn.execute(
-                "UPDATE users SET password_hash = ? WHERE email = ?",
-                (hash_password("demo1234"), demo_email),
+    with QueryExecutor(db_path) as qe:
+        existing = qe.fetchone("SELECT id, password_hash FROM users WHERE email = ?", (demo_email,))
+        if not existing:
+            demo_id = str(uuid.uuid4())
+            created_at = datetime.now(timezone.utc).isoformat()
+            qe.execute(
+                "INSERT INTO users (id, email, password_hash, created_at, name) VALUES (?, ?, ?, ?, ?)",
+                (demo_id, demo_email, hash_password("demo1234"), created_at, "Demo Learner"),
             )
+        else:
+            if not verify_password("demo1234", existing["password_hash"]):
+                qe.execute(
+                    "UPDATE users SET password_hash = ?, name = ? WHERE email = ?",
+                    (hash_password("demo1234"), "Demo Learner", demo_email),
+                )
+
+
+PG_SCHEMA_DDL = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS auth_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS otp_verifications (
+    email TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    otp_code TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    topic TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS attempts (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    concept_id TEXT NOT NULL,
+    question_id TEXT NOT NULL,
+    correct INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    ts TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mastery (
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    concept_id TEXT NOT NULL,
+    p_known DOUBLE PRECISION NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, concept_id)
+);
+CREATE TABLE IF NOT EXISTS traces (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    step INTEGER NOT NULL,
+    payload_json TEXT NOT NULL,
+    ts TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS questions (
+    id TEXT PRIMARY KEY,
+    concept_id TEXT NOT NULL,
+    difficulty INTEGER NOT NULL,
+    question TEXT NOT NULL,
+    options_json TEXT NOT NULL,
+    answer_index INTEGER NOT NULL,
+    explanation_hint TEXT,
+    created_at TEXT NOT NULL
+);
+"""
+
+SQLITE_SCHEMA_DDL = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS auth_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS otp_verifications (
+    email TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    otp_code TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    topic TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS attempts (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    concept_id TEXT NOT NULL,
+    question_id TEXT NOT NULL,
+    correct INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    ts TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS mastery (
+    session_id TEXT NOT NULL,
+    concept_id TEXT NOT NULL,
+    p_known REAL NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (session_id, concept_id),
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS traces (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    step INTEGER NOT NULL,
+    payload_json TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS questions (
+    id TEXT PRIMARY KEY,
+    concept_id TEXT NOT NULL,
+    difficulty INTEGER NOT NULL,
+    question TEXT NOT NULL,
+    options_json TEXT NOT NULL,
+    answer_index INTEGER NOT NULL,
+    explanation_hint TEXT,
+    created_at TEXT NOT NULL
+);
+"""
 
 
 def init_db(db_path: Optional[Path] = None) -> None:
-    """Initialize database tables on SQLite or PostgreSQL (Supabase)."""
+    """Initialize database tables on SQLite or PostgreSQL (Supabase/Neon) in a single fast transaction."""
     use_pg = is_postgres(db_path)
 
     if use_pg:
         conn = get_pg_connection()
         with conn:
             with conn.cursor() as cur:
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id TEXT PRIMARY KEY,
-                        name TEXT NOT NULL DEFAULT '',
-                        email TEXT UNIQUE NOT NULL,
-                        password_hash TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS auth_tokens (
-                        token TEXT PRIMARY KEY,
-                        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS otp_verifications (
-                        email TEXT PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        password_hash TEXT NOT NULL,
-                        otp_code TEXT NOT NULL,
-                        expires_at TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS sessions (
-                        id TEXT PRIMARY KEY,
-                        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-                        topic TEXT,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS attempts (
-                        id TEXT PRIMARY KEY,
-                        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-                        concept_id TEXT NOT NULL,
-                        question_id TEXT NOT NULL,
-                        correct INTEGER NOT NULL,
-                        latency_ms INTEGER NOT NULL,
-                        ts TEXT NOT NULL
-                    );
-                """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS mastery (
-                        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-                        concept_id TEXT NOT NULL,
-                        p_known DOUBLE PRECISION NOT NULL,
-                        updated_at TEXT NOT NULL,
-                        PRIMARY KEY (session_id, concept_id)
-                    );
-                """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS traces (
-                        id TEXT PRIMARY KEY,
-                        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-                        step INTEGER NOT NULL,
-                        payload_json TEXT NOT NULL,
-                        ts TEXT NOT NULL
-                    );
-                """)
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS questions (
-                        id TEXT PRIMARY KEY,
-                        concept_id TEXT NOT NULL,
-                        difficulty INTEGER NOT NULL,
-                        question TEXT NOT NULL,
-                        options_json TEXT NOT NULL,
-                        answer_index INTEGER NOT NULL,
-                        explanation_hint TEXT,
-                        created_at TEXT NOT NULL
-                    );
-                """)
+                cur.execute(PG_SCHEMA_DDL)
         conn.close()
     else:
         conn = get_sqlite_connection(db_path)
         with conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL DEFAULT '',
-                    email TEXT UNIQUE NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS auth_tokens (
-                    token TEXT PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                );
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS otp_verifications (
-                    email TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    otp_code TEXT NOT NULL,
-                    expires_at TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id TEXT PRIMARY KEY,
-                    user_id TEXT,
-                    topic TEXT,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-                );
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS attempts (
-                    id TEXT PRIMARY KEY,
-                    session_id TEXT NOT NULL,
-                    concept_id TEXT NOT NULL,
-                    question_id TEXT NOT NULL,
-                    correct INTEGER NOT NULL,
-                    latency_ms INTEGER NOT NULL,
-                    ts TEXT NOT NULL,
-                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                );
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS mastery (
-                    session_id TEXT NOT NULL,
-                    concept_id TEXT NOT NULL,
-                    p_known REAL NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    PRIMARY KEY (session_id, concept_id),
-                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                );
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS traces (
-                    id TEXT PRIMARY KEY,
-                    session_id TEXT NOT NULL,
-                    step INTEGER NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    ts TEXT NOT NULL,
-                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                );
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS questions (
-                    id TEXT PRIMARY KEY,
-                    concept_id TEXT NOT NULL,
-                    difficulty INTEGER NOT NULL,
-                    question TEXT NOT NULL,
-                    options_json TEXT NOT NULL,
-                    answer_index INTEGER NOT NULL,
-                    explanation_hint TEXT,
-                    created_at TEXT NOT NULL
-                );
-            """)
-            _seed_demo_user_sqlite(conn)
+            conn.executescript(SQLITE_SCHEMA_DDL)
         conn.close()
+
+    # Seed demo credentials on configured database (Postgres or SQLite)
+    _seed_demo_user(db_path)
 
 
 def create_user(email: str, password: str, name: str = "", db_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -456,16 +476,16 @@ def authenticate_user(email: str, password: str, db_path: Optional[Path] = None)
             "SELECT id, email, password_hash, created_at, name FROM users WHERE email = ?",
             (normalized_email,),
         )
-    if row is None:
-        return None
-    if not verify_password(password, row["password_hash"]):
-        return None
-    return {
-        "id": row["id"],
-        "email": row["email"],
-        "name": row["name"],
-        "created_at": row["created_at"],
-    }
+        if row is None:
+            return None
+        if not verify_password(password, row["password_hash"]):
+            return None
+        return {
+            "id": row["id"],
+            "email": row["email"],
+            "name": row["name"],
+            "created_at": row["created_at"],
+        }
 
 
 def create_auth_token(user_id: str, db_path: Optional[Path] = None) -> str:
@@ -494,12 +514,17 @@ def get_user_by_token(token: str, db_path: Optional[Path] = None) -> Optional[Di
             """,
             (token,),
         )
-    if row is None:
-        return None
-    return {"id": row["id"], "email": row["email"], "name": row["name"], "created_at": row["created_at"]}
+        if row is None:
+            return None
+        return {"id": row["id"], "email": row["email"], "name": row["name"], "created_at": row["created_at"]}
 
 
-def create_session(session_id: str, topic: Optional[str] = None, user_id: Optional[str] = None, db_path: Optional[Path] = None) -> str:
+def create_session(
+    session_id: str,
+    topic: Optional[str] = None,
+    user_id: Optional[str] = None,
+    db_path: Optional[Path] = None,
+) -> str:
     """Record a new learning session."""
     now_iso = datetime.now(timezone.utc).isoformat()
     with QueryExecutor(db_path) as qe:
@@ -675,33 +700,77 @@ def get_next_trace_step(session_id: str, db_path: Optional[Path] = None) -> int:
     return 1
 
 
-def save_question(q_dict: Dict[str, Any], db_path: Optional[Path] = None) -> None:
-    """Persist a question to the database."""
-    if not q_dict or "id" not in q_dict or "question" not in q_dict:
+def save_questions_batch(questions: List[Dict[str, Any]], db_path: Optional[Path] = None) -> None:
+    """Persist multiple questions efficiently in a single network roundtrip."""
+    if not questions:
         return
     now_iso = datetime.now(timezone.utc).isoformat()
+    use_pg = is_postgres(db_path)
+
+    valid_questions = [
+        q for q in questions
+        if q and "id" in q and "question" in q
+    ]
+    if not valid_questions:
+        return
+
     with QueryExecutor(db_path) as qe:
-        qe.execute(
+        if use_pg:
+            from psycopg2.extras import execute_values
+            query = """
+                INSERT INTO questions (id, concept_id, difficulty, question, options_json, answer_index, explanation_hint, created_at)
+                VALUES %s
+                ON CONFLICT(id) DO UPDATE SET
+                    question = EXCLUDED.question,
+                    options_json = EXCLUDED.options_json,
+                    answer_index = EXCLUDED.answer_index,
+                    explanation_hint = EXCLUDED.explanation_hint
             """
-            INSERT INTO questions (id, concept_id, difficulty, question, options_json, answer_index, explanation_hint, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                question = EXCLUDED.question,
-                options_json = EXCLUDED.options_json,
-                answer_index = EXCLUDED.answer_index,
-                explanation_hint = EXCLUDED.explanation_hint
-            """,
-            (
-                q_dict["id"],
-                q_dict.get("concept", ""),
-                int(q_dict.get("difficulty", 1)),
-                q_dict["question"],
-                json.dumps(q_dict.get("options", [])),
-                int(q_dict.get("answer_index", 0)),
-                q_dict.get("explanation_hint", ""),
-                now_iso,
-            ),
-        )
+            tuples = [
+                (
+                    q["id"],
+                    q.get("concept", ""),
+                    int(q.get("difficulty", 1)),
+                    q["question"],
+                    json.dumps(q.get("options", [])),
+                    int(q.get("answer_index", 0)),
+                    q.get("explanation_hint", ""),
+                    now_iso,
+                )
+                for q in valid_questions
+            ]
+            cursor = qe.conn.cursor()
+            execute_values(cursor, query, tuples)
+        else:
+            for q_dict in valid_questions:
+                qe.execute(
+                    """
+                    INSERT INTO questions (id, concept_id, difficulty, question, options_json, answer_index, explanation_hint, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        question = EXCLUDED.question,
+                        options_json = EXCLUDED.options_json,
+                        answer_index = EXCLUDED.answer_index,
+                        explanation_hint = EXCLUDED.explanation_hint
+                    """,
+                    (
+                        q_dict["id"],
+                        q_dict.get("concept", ""),
+                        int(q_dict.get("difficulty", 1)),
+                        q_dict["question"],
+                        json.dumps(q_dict.get("options", [])),
+                        int(q_dict.get("answer_index", 0)),
+                        q_dict.get("explanation_hint", ""),
+                        now_iso,
+                    ),
+                )
+
+
+def save_question(q_dict: Dict[str, Any], db_path: Optional[Path] = None) -> None:
+    """Persist a single question to the database."""
+    if not q_dict:
+        return
+    save_questions_batch([q_dict], db_path=db_path)
 
 
 def get_question(question_id: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:

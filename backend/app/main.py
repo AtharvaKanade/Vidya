@@ -33,6 +33,7 @@ from backend.app.db import (
     record_attempt,
     resend_otp_code,
     save_question,
+    save_questions_batch,
     set_mastery,
     verify_and_create_user,
 )
@@ -99,9 +100,8 @@ QUESTIONS_LIST: List[Dict[str, Any]] = load_question_bank()
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     init_db()
-    # Ensure all bank questions are registered in database
-    for q in QUESTIONS_LIST:
-        save_question(q)
+    # Ensure all bank questions are registered in database in a single batch
+    save_questions_batch(QUESTIONS_LIST)
     yield
 
 
@@ -321,131 +321,7 @@ async def get_current_user_profile(authorization: Optional[str] = Header(default
     return UserProfile(id=user["id"], name=user["name"], email=user["email"])
 
 
-@app.post(
-    "/auth/signup/request",
-    response_model=AuthOTPResponse,
-    status_code=status.HTTP_200_OK,
-    tags=["Auth"],
-)
-async def signup_request_otp(payload: AuthOTPRequest) -> AuthOTPResponse:
-    """Request an OTP verification code sent to learner's email."""
-    if payload.password != payload.confirm_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password and confirm password must match.",
-        )
-    try:
-        otp_info = create_otp_request(payload.email, payload.name, payload.password)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    sent_via_smtp = send_otp_email_notification(otp_info["email"], otp_info["name"], otp_info["otp_code"])
-
-    return AuthOTPResponse(
-        message=f"Verification OTP code sent to {otp_info['email']}.",
-        email=otp_info["email"],
-        debug_otp=otp_info["otp_code"],
-    )
-
-
-@app.post(
-    "/auth/signup/confirm",
-    response_model=AuthResponse,
-    status_code=status.HTTP_201_CREATED,
-    tags=["Auth"],
-)
-async def signup_confirm_otp(payload: AuthOTPConfirmRequest) -> AuthResponse:
-    """Verify 6-digit OTP code and create learner account."""
-    try:
-        user = verify_and_create_user(payload.email, payload.otp)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    token = create_auth_token(user["id"])
-    return AuthResponse(
-        token=token,
-        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
-    )
-
-
-@app.post(
-    "/auth/signup/resend",
-    response_model=AuthOTPResponse,
-    tags=["Auth"],
-)
-async def signup_resend_otp(payload: AuthOTPResendRequest) -> AuthOTPResponse:
-    """Resend a fresh 6-digit OTP code to learner's email."""
-    try:
-        otp_info = resend_otp_code(payload.email)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    sent_via_smtp = send_otp_email_notification(otp_info["email"], otp_info["name"], otp_info["otp_code"])
-
-    return AuthOTPResponse(
-        message=f"A fresh verification OTP code has been sent to {otp_info['email']}.",
-        email=otp_info["email"],
-        debug_otp=otp_info["otp_code"],
-    )
-
-
-@app.post(
-    "/auth/signup",
-    response_model=AuthResponse,
-    status_code=status.HTTP_201_CREATED,
-    tags=["Auth"],
-)
-async def signup(payload: AuthSignupRequest) -> AuthResponse:
-    """Direct account creation endpoint for backwards compatibility."""
-    email = payload.email.strip().lower()
-    if payload.password != payload.confirm_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password and confirm password must match.",
-        )
-    try:
-        user = create_user(email, payload.password, payload.name)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    token = create_auth_token(user["id"])
-    return AuthResponse(
-        token=token,
-        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
-    )
-
-
-@app.post(
-    "/auth/login",
-    response_model=AuthResponse,
-    tags=["Auth"],
-)
-async def login(payload: AuthLoginRequest) -> AuthResponse:
-    """Authenticate a learner by email and password."""
-    user = authenticate_user(payload.email, payload.password)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password.",
-        )
-
-    token = create_auth_token(user["id"])
-    return AuthResponse(
-        token=token,
-        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
-    )
-
-
-@app.get("/auth/me", response_model=UserProfile, tags=["Auth"])
-async def get_current_user_profile(authorization: Optional[str] = Header(default=None)) -> UserProfile:
-    """Return the currently authenticated user's profile."""
-    user = get_authenticated_user(authorization)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required.",
-        )
-    return UserProfile(id=user["id"], name=user["name"], email=user["email"])
 
 
 @app.post(
