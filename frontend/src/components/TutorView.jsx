@@ -2,15 +2,13 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Sparkle, CheckCircle, XCircle, ArrowRight, Brain, 
-  Lightbulb, CaretDown, CaretUp, Check, X,
-  ChartLineUp, Info, ArrowUpRight
+  Lightbulb, Info
 } from '@phosphor-icons/react';
 
 export default function TutorView({
   currentConcept,
   onAnswerSubmitted,
   onNextQuestion,
-  onRequestSelfRate,
   loadingNext
 }) {
   const [selectedOption, setSelectedOption] = useState(null);
@@ -18,7 +16,6 @@ export default function TutorView({
   const [lastResult, setLastResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [startTime, setStartTime] = useState(Date.now());
-  const [showScoreGuide, setShowScoreGuide] = useState(false);
   const [recentAnswers, setRecentAnswers] = useState([]);
 
   useEffect(() => {
@@ -32,10 +29,15 @@ export default function TutorView({
   if (!currentConcept) {
     return (
       <div className="max-w-2xl mx-auto px-4 pt-36 text-center animate-fade-in">
-        <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4 animate-spin">
-          <Brain size={24} className="text-emerald-400" />
+        <div 
+          className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 animate-spin"
+          style={{ background: 'var(--green-dim)', border: '1px solid var(--green-border)' }}
+        >
+          <Brain size={22} style={{ color: 'var(--green)' }} />
         </div>
-        <p className="text-sm font-medium text-gray-400">Selecting optimal challenge for your current skill level...</p>
+        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+          Selecting optimal challenge for your current skill level...
+        </p>
       </div>
     );
   }
@@ -112,93 +114,100 @@ export default function TutorView({
   const strokeDashoffset = circumference - (currentConcept.p_known * circumference);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 animate-fade-in-up tutor-workspace">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-24 animate-fade-in-up tutor-workspace">
       
-      {/* 2-Column Responsive Layout */}
+      {/* 2-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* ── Left Column: Sticky Concept Progress & Knowledge Dashboard ── */}
+        {/* ── Left Column: Concept Info & Mastery Card ── */}
         <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-4">
-          <div className="glass rounded-3xl p-5 sm:p-6 border border-white/10 shadow-xl">
-            
-            {/* Top metadata row */}
+          <div 
+            className="p-5 sm:p-6 rounded-lg"
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-mid)',
+            }}
+          >
+            {/* Top row: Difficulty only */}
             <div className="flex items-center justify-between gap-2 mb-4">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-white/[0.04] px-2.5 py-1 rounded-full border border-white/[0.06]">
-                Track: {currentConcept.topic}
-              </span>
-              <span className="badge badge-neutral text-xs">
-                {difficultyLabel}
-              </span>
+              <span className="label-caps" style={{ color: 'var(--text-muted)' }}>CONCEPT</span>
+              <span className="badge badge-neutral text-xs">{difficultyLabel}</span>
             </div>
 
             {/* Concept Title */}
-            <h2 className="heading-section text-xl sm:text-2xl font-bold text-white mb-6">
+            <h2 className="heading-section text-xl sm:text-2xl font-medium mb-5" style={{ color: 'var(--text-primary)' }}>
               {currentConcept.concept_name}
             </h2>
 
             {/* Circular Mastery Meter */}
-            <div className="flex items-center justify-center my-6">
-              <div className="relative w-32 h-32 flex items-center justify-center">
+            <div className="flex items-center justify-center my-5">
+              <div 
+                className="relative w-32 h-32 flex items-center justify-center cursor-help"
+                title="BKT Mastery: Bayesian estimate of concept mastery. 85% unlocks new topics."
+              >
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                   {/* Background track */}
                   <circle
                     cx="50"
                     cy="50"
                     r={radius}
-                    className="text-white/[0.06]"
-                    strokeWidth="8"
-                    stroke="currentColor"
+                    stroke="var(--bg-raised)"
+                    strokeWidth="7"
                     fill="transparent"
                   />
-                  {/* Progress ring with emerald gradient stroke */}
+                  {/* Progress ring with green stroke */}
                   <circle
                     cx="50"
                     cy="50"
                     r={radius}
-                    className="text-emerald-400 transition-all duration-700 ease-out"
-                    strokeWidth="8"
+                    stroke="var(--green)"
+                    strokeWidth="7"
                     strokeDasharray={circumference}
                     strokeDashoffset={strokeDashoffset}
                     strokeLinecap="round"
-                    stroke="currentColor"
                     fill="transparent"
+                    style={{ transition: 'stroke-dashoffset 700ms ease-out' }}
                   />
                 </svg>
                 {/* Center text content */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="font-mono text-2xl font-extrabold text-white tracking-tight">
+                  <span className="font-mono text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
                     {scorePercent}%
                   </span>
-                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-                    Mastery
+                  <span 
+                    className="text-[9px] uppercase font-semibold tracking-wider flex items-center gap-1"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Mastery <Info size={10} style={{ color: 'var(--text-muted)' }} />
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Current Status Pill */}
-            <div className="flex items-center justify-center mb-6">
-              <span className={`badge ${stageBadgeClass} px-3 py-1 text-xs font-semibold shadow-sm`}>
+            <div className="flex items-center justify-center mb-5">
+              <span className={`badge ${stageBadgeClass} px-3 py-1 text-xs font-semibold`}>
                 {stageLabel}
               </span>
             </div>
 
             {/* Recent Answer Attempts Strip */}
-            <div className="pt-4 border-t border-white/[0.06] mb-4">
-              <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+            <div className="pt-4 border-t" style={{ borderColor: 'var(--border-dim)' }}>
+              <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-secondary)' }}>
                 <span>Recent Answers:</span>
                 <div className="flex items-center gap-1.5">
                   {recentAnswers.length === 0 ? (
-                    <span className="text-gray-500 text-[11px]">First attempt</span>
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>First attempt</span>
                   ) : (
                     recentAnswers.map((isCor, idx) => (
                       <span
                         key={idx}
-                        className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                          isCor 
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' 
-                            : 'bg-red-500/20 text-red-400 border border-red-500/40'
-                        }`}
+                        className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold"
+                        style={{
+                          background: isCor ? 'var(--green-dim)' : 'var(--red-dim)',
+                          color: isCor ? 'var(--green)' : 'var(--red)',
+                          border: `1px solid ${isCor ? 'var(--green-border)' : 'var(--red-border)'}`,
+                        }}
                       >
                         {isCor ? '✓' : '✗'}
                       </span>
@@ -207,54 +216,28 @@ export default function TutorView({
                 </div>
               </div>
             </div>
-
-            {/* How score works collapsible */}
-            <div className="pt-3 border-t border-white/[0.06]">
-              <button
-                onClick={() => setShowScoreGuide(!showScoreGuide)}
-                className="flex items-center justify-between w-full text-xs text-gray-400 hover:text-gray-200 transition-colors py-1"
-              >
-                <span className="flex items-center gap-1.5">
-                  <Info size={14} className="text-emerald-400" />
-                  How BKT Mastery Works
-                </span>
-                {showScoreGuide ? <CaretUp size={12} /> : <CaretDown size={12} />}
-              </button>
-
-              {showScoreGuide && (
-                <div className="mt-3 p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] text-xs text-gray-400 space-y-2 leading-relaxed animate-fade-in">
-                  <p>• Every answer updates your mastery probability using Bayesian Knowledge Tracing.</p>
-                  <p>• Reaching <strong className="text-emerald-400">85% mastery</strong> marks this concept as mastered and unlocks advanced topics.</p>
-                  <p>• Multiple incorrect answers automatically trigger step-by-step alternate explanations.</p>
-                </div>
-              )}
-            </div>
-
-            {/* Self-rate trigger link */}
-            {onRequestSelfRate && (
-              <div className="pt-3 border-t border-white/[0.06] mt-3">
-                <button
-                  onClick={() => onRequestSelfRate(currentConcept)}
-                  className="flex items-center justify-between w-full text-xs text-gray-400 hover:text-emerald-400 transition-colors py-1 group"
-                >
-                  <span>Calibrate confidence manually</span>
-                  <ArrowUpRight size={13} className="text-gray-500 group-hover:text-emerald-400 transition-colors" />
-                </button>
-              </div>
-            )}
           </div>
         </aside>
 
-        {/* ── Right Column: Interactive Question & Response Interface ── */}
-        <div className="lg:col-span-8 space-y-5">
+        {/* ── Right Column: Interactive Question & Response Area ── */}
+        <div className="lg:col-span-8 space-y-4">
           
           {/* Re-explain Notification Banner */}
           {lastResult?.re_explain && (
-            <div className="glass rounded-2xl p-4 border border-emerald-500/30 bg-emerald-950/20 text-emerald-200 flex items-start gap-3 animate-fade-in shadow-md">
-              <Lightbulb size={20} weight="duotone" className="text-emerald-400 shrink-0 mt-0.5" />
+            <div 
+              className="p-4 rounded-lg flex items-start gap-3 animate-fade-in"
+              style={{
+                background: 'var(--green-dim)',
+                border: '1px solid var(--green-border)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <Lightbulb size={20} weight="duotone" style={{ color: 'var(--green)', flexShrink: 0, marginTop: 2 }} />
               <div>
-                <strong className="block font-semibold text-white mb-0.5">Let's try a fresh perspective</strong>
-                <p className="text-xs text-emerald-200/90 leading-relaxed">
+                <strong className="block font-semibold text-sm mb-0.5" style={{ color: 'var(--text-primary)' }}>
+                  Let's try a fresh perspective
+                </strong>
+                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                   Vidya has switched to an intuitive real-world analogy to help bridge the concept gap.
                 </p>
               </div>
@@ -262,46 +245,65 @@ export default function TutorView({
           )}
 
           {/* Main Question Card */}
-          <div className="glass rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl">
-            
-            {/* Question Card Header */}
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/[0.06]">
-              <div className="flex items-center gap-2">
-                <Sparkle size={16} weight="fill" className="text-emerald-400" />
-                <span className="label-caps text-emerald-400">Adaptive Challenge</span>
-              </div>
-              <span className="text-xs font-mono text-gray-400">
-                Question ID: {questionItem.id.replace('q_', '')}
+          <div 
+            className="p-6 sm:p-8 rounded-lg"
+            style={{
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-mid)',
+            }}
+          >
+            {/* Header: Clean adaptive prompt label */}
+            <div className="flex items-center gap-2 mb-5 pb-3 border-b" style={{ borderColor: 'var(--border-dim)' }}>
+              <Sparkle size={14} weight="fill" style={{ color: 'var(--accent)' }} />
+              <span className="label-caps font-semibold" style={{ color: 'var(--accent)' }}>
+                ADAPTIVE PRACTICE
               </span>
             </div>
 
             {/* Question Text */}
-            <h3 className="text-white text-base sm:text-lg font-semibold leading-relaxed mb-8">
+            <h3 
+              className="text-base sm:text-lg font-medium leading-relaxed mb-6"
+              style={{ color: 'var(--text-primary)' }}
+            >
               {questionItem.question}
             </h3>
 
-            {/* Options List */}
-            <div className="space-y-3 mb-8">
+            {/* Options List — Left Border Styling */}
+            <div className="space-y-3 mb-6">
               {questionItem.options.map((option, idx) => {
                 const isSelected = selectedOption === idx;
                 const isCorrect = isSubmitted && idx === questionItem.answer_index;
                 const isWrong = isSubmitted && isSelected && !isCorrect;
 
-                let optionClasses = "w-full text-left p-4 rounded-2xl border transition-all duration-200 flex items-start gap-3.5 ";
-                
+                let optionStyle = {
+                  border: '1px solid var(--border-mid)',
+                  borderLeft: '4px solid var(--border-mid)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  opacity: 1,
+                  transition: 'all 150ms ease',
+                };
+
                 if (!isSubmitted) {
                   if (isSelected) {
-                    optionClasses += "bg-emerald-500/10 border-l-4 border-l-emerald-400 border-emerald-500/40 text-white shadow-md";
-                  } else {
-                    optionClasses += "bg-white/[0.02] border-white/[0.06] text-gray-300 hover:bg-white/[0.05] hover:border-white/[0.12]";
+                    optionStyle.borderLeft = '4px solid var(--accent)';
+                    optionStyle.borderColor = 'var(--accent-border)';
+                    optionStyle.background = 'var(--accent-dim)';
                   }
                 } else {
                   if (isCorrect) {
-                    optionClasses += "bg-emerald-500/15 border-l-4 border-l-emerald-400 border-emerald-500/50 text-emerald-100 shadow-md";
+                    optionStyle.borderLeft = '4px solid var(--green)';
+                    optionStyle.borderColor = 'var(--green-border)';
+                    optionStyle.background = 'var(--green-dim)';
                   } else if (isWrong) {
-                    optionClasses += "bg-red-500/15 border-l-4 border-l-red-400 border-red-500/50 text-red-100";
+                    optionStyle.borderLeft = '4px solid var(--red)';
+                    optionStyle.borderColor = 'var(--red-border)';
+                    optionStyle.background = 'var(--red-dim)';
                   } else {
-                    optionClasses += "bg-white/[0.01] border-white/[0.04] text-gray-500 opacity-60";
+                    optionStyle.borderColor = 'var(--border-dim)';
+                    optionStyle.borderLeft = '4px solid var(--border-dim)';
+                    optionStyle.color = 'var(--text-muted)';
+                    optionStyle.opacity = 0.55;
                   }
                 }
 
@@ -311,64 +313,59 @@ export default function TutorView({
                     disabled={isSubmitted || submitting}
                     onClick={() => handleOptionSelect(idx)}
                     id={`option-${idx}`}
-                    className={optionClasses}
+                    className="w-full text-left p-3.5 sm:p-4 rounded text-xs sm:text-sm font-medium leading-relaxed cursor-pointer block"
+                    style={optionStyle}
                   >
-                    {/* Option Alphabet Badge */}
-                    <span className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold font-mono transition-colors ${
-                      isSelected && !isSubmitted
-                        ? 'bg-emerald-400 text-black'
-                        : isCorrect
-                        ? 'bg-emerald-400 text-black'
-                        : isWrong
-                        ? 'bg-red-400 text-black'
-                        : 'bg-white/[0.06] text-gray-400 border border-white/[0.08]'
-                    }`}>
-                      {isCorrect ? <Check size={14} weight="bold" /> : isWrong ? <X size={14} weight="bold" /> : String.fromCharCode(65 + idx)}
-                    </span>
-
-                    <span className="text-xs sm:text-sm leading-relaxed pt-0.5 font-medium">
-                      {option}
-                    </span>
+                    <span>{option}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Action Buttons & Feedback Container */}
+            {/* Action Buttons & Feedback Area */}
             {!isSubmitted ? (
               <button
                 id="submit-answer"
                 disabled={selectedOption === null || submitting}
                 onClick={handleSubmitAnswer}
-                className="btn btn-primary w-full py-3 text-sm font-bold flex items-center justify-center gap-2"
+                className="btn btn-primary w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
               >
-                <span>{submitting ? 'Verifying with BKT Engine...' : 'Check My Answer'}</span>
+                <span>{submitting ? 'Updating mastery model...' : 'Submit Answer'}</span>
                 <ArrowRight size={16} weight="bold" />
               </button>
             ) : (
               <div className="space-y-4 animate-fade-in">
                 {/* Result Feedback Pod */}
-                <div className={`rounded-2xl p-5 border ${
-                  lastResult?.correct 
-                    ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200' 
-                    : 'bg-red-950/40 border-red-500/30 text-red-200'
-                }`}>
+                <div 
+                  className="rounded-lg p-4 sm:p-5 border"
+                  style={{
+                    background: lastResult?.correct ? 'var(--green-dim)' : 'var(--red-dim)',
+                    borderColor: lastResult?.correct ? 'var(--green-border)' : 'var(--red-border)',
+                  }}
+                >
                   <div className="flex items-start gap-3">
                     {lastResult?.correct ? (
-                      <CheckCircle size={22} weight="fill" className="text-emerald-400 shrink-0 mt-0.5" />
+                      <CheckCircle size={22} weight="fill" style={{ color: 'var(--green)', flexShrink: 0, marginTop: 2 }} />
                     ) : (
-                      <XCircle size={22} weight="fill" className="text-red-400 shrink-0 mt-0.5" />
+                      <XCircle size={22} weight="fill" style={{ color: 'var(--red)', flexShrink: 0, marginTop: 2 }} />
                     )}
                     <div className="flex-1">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="font-bold text-white text-sm">
-                          {lastResult?.correct ? 'Correct! Strong understanding shown.' : 'Incorrect — Let us reinforce this concept:'}
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                          {lastResult?.correct ? 'Correct' : 'Incorrect'}
                         </span>
-                        <span className="font-mono text-xs bg-black/40 px-2.5 py-1 rounded-lg border border-white/10 text-gray-300">
+                        <span 
+                          className="font-mono text-xs px-2 py-0.5 rounded border"
+                          style={{
+                            background: 'var(--bg-surface)',
+                            borderColor: 'var(--border-mid)',
+                            color: 'var(--text-secondary)'
+                          }}
+                        >
                           {Math.round(lastResult?.p_known_before * 100)}% → {Math.round(lastResult?.p_known_after * 100)}%
                         </span>
                       </div>
-                      <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+                      <p className="text-xs sm:text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                         {questionItem.explanation_hint}
                       </p>
                     </div>
@@ -385,9 +382,9 @@ export default function TutorView({
                     setLastResult(null);
                     if (onNextQuestion) await onNextQuestion();
                   }}
-                  className="btn btn-primary w-full py-3 text-sm font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-emerald-500/25"
+                  className="btn btn-primary w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
                 >
-                  <span>{loadingNext ? 'Loading Next Adaptive Challenge...' : 'Continue Learning'}</span>
+                  <span>{loadingNext ? 'Loading Next Practice Question...' : 'Continue to Next Question'}</span>
                   <ArrowRight size={16} weight="bold" />
                 </button>
               </div>

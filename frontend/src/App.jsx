@@ -173,10 +173,6 @@ export default function App() {
             currentConcept={currentConcept}
             onAnswerSubmitted={handleAnswerSubmit}
             onNextQuestion={handleNextQuestion}
-            onRequestSelfRate={(c) => {
-              setSelfRatingConcept(c);
-              setSelfRatingModalOpen(true);
-            }}
             loadingNext={loading}
           />
         ) : activeTab === 'mastery' ? (
