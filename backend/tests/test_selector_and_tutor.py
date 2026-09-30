@@ -75,26 +75,66 @@ def test_tutor_fallback_and_styles():
             concept_name="Activation functions",
             concept_id="nn_activation",
             p_known=0.45,
+            question_id="q_act_01",
+            question_text="Why do we need non-linear activations?",
+            correct_answer="To enable multi-layer representation of non-linear boundaries.",
+            explanation_hint="Linear stacks collapse into a single linear map.",
             style=style,
         )
         assert isinstance(text, str)
         assert len(text) > 20
+        assert "non-linear" in text.lower() or "linear" in text.lower()
 
 
-def test_explain_endpoint(client):
-    """Test POST /session/{id}/explain returns explanation and updates trace."""
+def test_question_specific_explanations_are_distinct():
+    """Verify two different questions for the same concept yield distinct tailored explanations."""
+    text1, _, _ = explain(
+        concept_name="Loss functions",
+        concept_id="nn_loss",
+        p_known=0.50,
+        question_id="q_loss_mse",
+        question_text="When is Mean Squared Error (MSE) typically preferred?",
+        correct_answer="For continuous regression targets.",
+        explanation_hint="MSE penalizes squared Euclidean distances.",
+    )
+
+    text2, _, _ = explain(
+        concept_name="Loss functions",
+        concept_id="nn_loss",
+        p_known=0.50,
+        question_id="q_loss_bce",
+        question_text="Why is Binary Cross-Entropy used for binary classification?",
+        correct_answer="It models Bernoulli log-likelihood and outputs probabilities.",
+        explanation_hint="Cross-entropy penalizes confident wrong predictions asymptotically.",
+    )
+
+    assert text1 != text2
+    assert "regression" in text1.lower() or "continuous" in text1.lower()
+    assert "binary" in text2.lower() or "cross-entropy" in text2.lower()
+
+
+def test_explain_endpoint_with_question_context(client):
+    """Test POST /session/{id}/explain returns question-tailored explanation."""
     start_res = client.post("/session/start", json={"topic": "nn"})
     session_id = start_res.json()["session_id"]
 
     explain_res = client.post(
         f"/session/{session_id}/explain",
-        json={"concept_id": "nn_perceptron", "style": "analogy"},
+        json={
+            "concept_id": "nn_perceptron",
+            "question_id": "q_perc_01",
+            "question_text": "What is the primary architectural limitation of a single perceptron?",
+            "correct_answer": "It cannot solve non-linearly separable problems like XOR.",
+            "user_answer": "It cannot compute linear combinations.",
+            "is_correct": False,
+            "style": "default",
+        },
     )
     assert explain_res.status_code == 200
     data = explain_res.json()
     assert data["concept_id"] == "nn_perceptron"
-    assert data["style"] == "analogy"
-    assert len(data["explanation"]) > 10
+    assert data["question_id"] == "q_perc_01"
+    assert len(data["explanation"]) > 20
 
     # Verify trace log
     trace_res = client.get(f"/session/{session_id}/trace")

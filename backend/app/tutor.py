@@ -1,6 +1,6 @@
 """LLM Tutor module for Vidya.
 
-Provides adaptive explanations, multi-style re-explanations, and fallbacks.
+Provides elaborate question-specific explanations, multi-style re-explanations, and fallbacks.
 Core Principle: The BKT engine decides mastery; the LLM only explains.
 """
 
@@ -15,47 +15,28 @@ load_dotenv()
 # Style constants
 STYLES = ["default", "analogy", "worked_example", "step_by_step"]
 
-# Fallback explanations per style if LLM fails or API key is not configured
-FALLBACKS = {
-    "default": (
-        "This is a fundamental concept in AI/ML. Review how inputs are transformed "
-        "step-by-step through the model, and focus on why this operation is essential "
-        "for learning patterns from data."
-    ),
-    "analogy": (
-        "Think of this like a factory assembly line: raw materials (inputs) undergo "
-        "specific standardized transformations (operations) at each station to produce "
-        "a refined final product (prediction)."
-    ),
-    "worked_example": (
-        "Step-by-step walkthrough: 1) Start with raw vector inputs [x1, x2]. "
-        "2) Apply learned weight scaling and bias offset. 3) Pass through a non-linear gate "
-        "to determine if the feature activates."
-    ),
-    "step_by_step": (
-        "Breaking it down:\n"
-        "1. Input stage: Receiving features or tokens.\n"
-        "2. Transformation stage: Calculating weighted interactions.\n"
-        "3. Activation stage: Mapping values to bounded output space."
-    ),
-}
-
 # In-memory explanation cache: hash_key -> explanation text
 _EXPLANATION_CACHE: Dict[str, str] = {}
 
 
-def _get_cache_key(concept_id: str, p_known: float, style: str) -> str:
-    """Generate deterministic cache key bucketed by mastery range."""
-    # Bucket p_known into 3 buckets (0.0-0.4, 0.4-0.7, 0.7-1.0) for cache efficiency
-    bucket = "low" if p_known < 0.4 else ("mid" if p_known < 0.7 else "high")
-    raw = f"{concept_id}:{bucket}:{style}"
+def _get_cache_key(
+    concept_id: str,
+    question_id: Optional[str],
+    question_text: Optional[str],
+    style: str,
+    user_answer: Optional[str],
+) -> str:
+    """Generate deterministic cache key based on the specific question and style."""
+    q_key = question_id or (question_text[:50] if question_text else "general")
+    ans_key = user_answer[:30] if user_answer else "none"
+    raw = f"{concept_id}:{q_key}:{style}:{ans_key}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
 def get_client() -> Optional[Any]:
     """Safely obtain google-genai Client instance if API key is present."""
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key or api_key.startswith("your-"):
+    if not api_key or api_key.startswith("your-") or api_key == "your_gemini_api_key_here":
         return None
     try:
         from google import genai
@@ -68,60 +49,71 @@ def explain(
     concept_name: str,
     concept_id: str,
     p_known: float,
-    wrong_answers: Optional[List[str]] = None,
+    question_id: Optional[str] = None,
+    question_text: Optional[str] = None,
+    options: Optional[List[str]] = None,
+    user_answer: Optional[str] = None,
+    correct_answer: Optional[str] = None,
+    is_correct: Optional[bool] = None,
+    explanation_hint: Optional[str] = None,
     style: str = "default",
     concept_desc: Optional[str] = None,
 ) -> Tuple[str, bool, bool]:
-    """Generate or retrieve a concise pedagogical explanation.
-
-    Args:
-        concept_name: Human readable name of the concept.
-        concept_id: Unique concept ID.
-        p_known: Current BKT mastery probability.
-        wrong_answers: List of recent incorrect question IDs or notes.
-        style: One of 'default', 'analogy', 'worked_example', 'step_by_step'.
-        concept_desc: Optional description from curriculum DAG.
-
-    Returns:
-        Tuple of (explanation_text, from_cache, is_fallback).
-    """
+    """Generate an elaborate, question-specific pedagogical explanation without repeating the question."""
     if style not in STYLES:
         style = "default"
 
-    cache_key = _get_cache_key(concept_id, p_known, style)
+    cache_key = _get_cache_key(concept_id, question_id, question_text, style, user_answer)
     if cache_key in _EXPLANATION_CACHE:
         return _EXPLANATION_CACHE[cache_key], True, False
 
     level_desc = (
-        "beginner (needs clear intuition and minimal jargon)"
+        "beginner (needs clear intuition, concrete terms, and minimal jargon)"
         if p_known < 0.4
-        else ("intermediate (understands basics, needs precision)" if p_known < 0.7 else "advanced")
+        else ("intermediate (understands fundamentals, needs rigorous clarity)" if p_known < 0.7 else "advanced")
     )
 
     style_instructions = {
-        "default": "Provide a clear, intuitive 2-3 sentence conceptual explanation.",
-        "analogy": "Explain using a vivid, memorable real-world analogy to build intuition.",
-        "worked_example": "Provide a clear worked miniature example with sample numbers or step outputs.",
-        "step_by_step": "Explain strictly as 3 numbered logical steps.",
-    }.get(style, "Provide a clear, intuitive 2-3 sentence conceptual explanation.")
+        "default": (
+            "Provide a thorough, comprehensive conceptual breakdown. Explain why the correct "
+            "choice works mathematically or architecturally."
+        ),
+        "analogy": (
+            "Explain the mechanism using a clear, memorable real-world analogy to make "
+            "the behavior immediately intuitive."
+        ),
+        "worked_example": (
+            "Provide a clear miniature worked walkthrough showing exact input values or tensor dimensions "
+            "being transformed step by step to reach the correct answer."
+        ),
+        "step_by_step": (
+            "Break down the answer into numbered logical steps (1., 2., 3.) with each step on its own line."
+        ),
+    }.get(style, "Provide a thorough conceptual breakdown.")
 
-    context_hint = f"Context summary: {concept_desc}" if concept_desc else ""
-    wrong_context = (
-        f"The student recently struggled with: {', '.join(wrong_answers[-2:])}."
-        if wrong_answers
-        else ""
-    )
+    # Format options for prompt
+    options_str = ""
+    if options:
+        options_str = "\n".join(f"- {opt}" for opt in options)
 
-    prompt = f"""You are Vidya, an expert AI tutor teaching '{concept_name}' in machine learning.
-Target audience: {level_desc}.
-{context_hint}
-{wrong_context}
+    prompt = f"""You are Vidya, an expert AI tutor in machine learning and deep learning.
+A student just answered a practice question about "{concept_name}".
 
-Instruction: {style_instructions}
-Constraints:
-- Strictly under 100 words.
-- Engaging, encouraging, and pedagogically precise.
-- Do NOT output markdown headers, just the explanation text.
+### Context:
+- Target Learner Level: {level_desc}
+- Concept: {concept_name} ({concept_desc or ''})
+- Question Asked: "{question_text or 'Why is ' + concept_name + ' important?'}"
+{f"- Available Options:\n{options_str}" if options_str else ""}
+{f"- Correct Answer: {correct_answer}" if correct_answer else ""}
+{f"- Student's Chosen Option: {user_answer} ({'Correct' if is_correct else 'Incorrect'})" if user_answer else ""}
+{f"- Key Insight / Hint: {explanation_hint}" if explanation_hint else ""}
+
+### Instructions:
+- {style_instructions}
+- CRITICAL: Do NOT repeat the question text at the start. Begin directly with the core explanation.
+- State clearly why **{correct_answer}** is the correct answer.
+{f"- Clarify why choosing '{user_answer}' was a misconception and how to avoid it." if (user_answer and is_correct is False) else ""}
+- Structure your response cleanly using bold titles, paragraphs, and numbered step lines where appropriate.
 """
 
     client = get_client()
@@ -133,8 +125,8 @@ Constraints:
                 model="gemini-2.0-flash",
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    max_output_tokens=180,
-                    temperature=0.3,
+                    max_output_tokens=450,
+                    temperature=0.35,
                 ),
             )
             text = (response.text or "").strip()
@@ -142,15 +134,48 @@ Constraints:
                 _EXPLANATION_CACHE[cache_key] = text
                 return text, False, False
         except Exception:
-            # Fall through to fallback
+            # Fall through to question-tailored fallback
             pass
 
-    # High quality fallback text customized with concept name
-    fallback_base = FALLBACKS.get(style, FALLBACKS["default"])
-    if concept_desc:
-        custom_fallback = f"{concept_name}: {concept_desc}. {fallback_base}"
-    else:
-        custom_fallback = f"{concept_name}: {fallback_base}"
+    # Question-specific structured fallback (NO repeating the question)
+    fallback_parts = []
 
+    # 1. Correct Answer & Mechanism
+    if correct_answer:
+        fallback_parts.append(f"**Why '{correct_answer}' is correct:**")
+    
+    if explanation_hint:
+        fallback_parts.append(explanation_hint)
+    elif concept_desc:
+        fallback_parts.append(concept_desc)
+
+    # 2. Style-specific elaboration on separate lines
+    if style == "analogy":
+        fallback_parts.append(
+            f"**Real-World Analogy:**\n"
+            f"Think of {concept_name} like an assembly line with strict dimensional slots: "
+            "each incoming part must match the shape and capacity of the station, ensuring every batch flows without bottleneck."
+        )
+    elif style == "worked_example":
+        fallback_parts.append(
+            "**Worked Walkthrough:**\n"
+            "1. Start with the incoming batch of inputs and their dimensions.\n"
+            "2. Apply the matrix operation or transformation rule.\n"
+            f"3. Verify that the output precisely satisfies the required target shape or condition: **{correct_answer or 'valid output'}**."
+        )
+    elif style == "step_by_step":
+        fallback_parts.append(
+            "**Step-by-Step Breakdown:**\n"
+            "1. **Input State:** Examine the initial input features or dimensions.\n"
+            f"2. **Transformation:** The operation applies {concept_name} to preserve consistency across the batch.\n"
+            f"3. **Conclusion:** This yields **{correct_answer or explanation_hint}** as the required result."
+        )
+    else:
+        fallback_parts.append(
+            f"**Key Takeaway:**\n"
+            f"In neural network architectures, {concept_name} is essential because it guarantees mathematical consistency and enables layers to propagate information accurately."
+        )
+
+    custom_fallback = "\n\n".join(fallback_parts)
     _EXPLANATION_CACHE[cache_key] = custom_fallback
     return custom_fallback, False, True
