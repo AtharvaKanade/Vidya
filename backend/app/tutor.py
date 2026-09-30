@@ -1,11 +1,14 @@
 """LLM Tutor module for Vidya.
 
-Provides elaborate question-specific explanations, multi-style re-explanations, and fallbacks.
-Core Principle: The BKT engine decides mastery; the LLM only explains.
+Provides elaborate question-specific explanations, dynamic adaptive question generation,
+multi-style re-explanations, and fail-safe fallbacks.
+Core Principle: The BKT engine decides mastery; the LLM only explains and scaffolds.
 """
 
 import hashlib
+import json
 import os
+import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
@@ -43,6 +46,244 @@ def get_client() -> Optional[Any]:
         return genai.Client(api_key=api_key)
     except Exception:
         return None
+
+
+def _get_models_to_try() -> List[str]:
+    """Return prioritized list of Gemini models to use for generation."""
+    env_model = os.getenv("GEMINI_MODEL")
+    defaults = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-pro-preview", "gemini-2.5-flash-lite"]
+    if env_model:
+        return [env_model] + [m for m in defaults if m != env_model]
+    return defaults
+
+
+def generate_adaptive_question(
+    concept_name: str,
+    concept_id: str,
+    difficulty: int,
+    p_known: float,
+    topic_name: Optional[str] = None,
+    concept_desc: Optional[str] = None,
+    recent_attempts: Optional[List[Dict[str, Any]]] = None,
+    previous_questions: Optional[List[str]] = None,
+    last_wrong_question: Optional[str] = None,
+    last_user_answer: Optional[str] = None,
+    last_correct_answer: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Generate a real-time, adaptive MCQ problem tailored to the student's mastery level.
+
+    Adaptive Learning Dynamics:
+    - If student answered INCORRECTLY: Generates a simpler, more basic foundational question
+      (scaffolded) targeting the core intuition so the student learns the basics before advancing.
+    - If student answered CORRECTLY: Increases question depth (Difficulty 2/3) building on prior success.
+    - Never repeats the exact same question.
+    """
+    client = get_client()
+
+    # Check if student made an error recently
+    has_recent_error = False
+    if recent_attempts and len(recent_attempts) > 0:
+        if not recent_attempts[0].get("correct", True):
+            has_recent_error = True
+
+    if has_recent_error or last_wrong_question:
+        wrong_info = f"Previous Question: \"{last_wrong_question}\"\n" if last_wrong_question else ""
+        if last_user_answer:
+            wrong_info += f"Student chose: \"{last_user_answer}\"\n"
+        if last_correct_answer:
+            wrong_info += f"Correct answer was: \"{last_correct_answer}\"\n"
+
+        pedagogical_mode = (
+            "STUDENT STRUGGLED / INCORRECT ANSWER (FOUNDATIONAL SCAFFOLDING MODE):\n"
+            f"{wrong_info}"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. DO NOT repeat, rephrase, or ask the previous question.\n"
+            "2. Generate a MUCH SIMPLER, BASIC (Level 1 / Foundational) question that isolates "
+            f"the single most fundamental definition, intuition, or core rule of '{concept_name}'.\n"
+            "3. The goal is to let the student easily grasp and test the basic concept so they gain "
+            "confidence before moving to intermediate or advanced problems.\n"
+            "4. Keep the question straightforward with 4 clear, unambiguous options."
+        )
+        effective_diff = 1
+    elif p_known >= 0.70:
+        pedagogical_mode = (
+            "STUDENT EXCELLING (ADVANCED MODE):\n"
+            f"The student has shown strong mastery ({round(p_known, 2)}). Generate a nuanced Level 3 question testing "
+            f"architectural trade-offs, edge cases, or multi-step reasoning in '{concept_name}'."
+        )
+        effective_diff = 3
+    elif p_known >= 0.40:
+        pedagogical_mode = (
+            "STUDENT PROGRESSING (INTERMEDIATE MODE):\n"
+            f"The student understands the basics ({round(p_known, 2)}). Generate an applied Level 2 question testing "
+            f"practical mathematical operations, dimensions, or standard usage of '{concept_name}'."
+        )
+        effective_diff = 2
+    else:
+        pedagogical_mode = (
+            "STUDENT STARTING (FOUNDATIONAL INTUITION MODE):\n"
+            f"Generate a clear, confidence-building Level 1 question testing the basic definition and core intuition of '{concept_name}'."
+        )
+        effective_diff = 1
+
+    prev_context = ""
+    if previous_questions and len(previous_questions) > 0:
+        prev_context = (
+            "CRITICAL CONSTRAINT: Do NOT repeat or duplicate any of these previously asked questions in this session:\n"
+            + "\n".join(f"- {q}" for q in previous_questions[-10:])
+        )
+
+    prompt = f"""You are Vidya, an adaptive AI tutor creating an individualized practice question for learning AI/ML.
+
+Curriculum Topic: {topic_name or 'Machine Learning Foundations'}
+Target Concept: {concept_name}
+Concept Summary: {concept_desc or ''}
+Current Mastery Probability: {round(p_known, 2)}
+
+### Pedagogical Goal:
+{pedagogical_mode}
+
+{prev_context}
+
+### Question Requirements:
+1. Provide a completely fresh, engaging problem statement.
+2. Provide exactly 4 distinct options (A, B, C, D) with exactly ONE unambiguously correct answer.
+3. Distractors must represent plausible student misconceptions without being tricky or ambiguous.
+4. Keep the wording clear, concise, and direct.
+5. Provide a 1-sentence 'explanation_hint' stating the key takeaway.
+
+Respond strictly in JSON format with this exact schema:
+{{
+  "question": "Clear problem statement",
+  "options": [
+    "Option 1",
+    "Option 2",
+    "Option 3",
+    "Option 4"
+  ],
+  "answer_index": 0,
+  "explanation_hint": "Key pedagogical takeaway"
+}}
+"""
+
+    if client is not None:
+        from google.genai import types
+
+        for model_name in _get_models_to_try():
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.35,
+                        max_output_tokens=600,
+                    ),
+                )
+                raw_text = (response.text or "").strip()
+                data = json.loads(raw_text)
+
+                if "question" in data and "options" in data and len(data["options"]) == 4 and "answer_index" in data:
+                    # Check that question is not an exact duplicate
+                    q_text = data["question"].strip()
+                    if previous_questions and any(q_text.lower() == prev.lower() for prev in previous_questions):
+                        continue
+
+                    return {
+                        "id": f"gen_{concept_id}_{uuid.uuid4().hex[:8]}",
+                        "concept": concept_id,
+                        "difficulty": effective_diff,
+                        "type": "mcq",
+                        "question": q_text,
+                        "options": data["options"],
+                        "answer_index": int(data["answer_index"]),
+                        "explanation_hint": data.get("explanation_hint", f"Core takeaway for {concept_name}"),
+                        "generated": True,
+                    }
+            except Exception:
+                continue
+
+    # Dynamic Fallback Synthesis (when Gemini is offline or fails)
+    # Generates diverse, distinct scaffolded questions so questions never repeat
+    prev_set = set(previous_questions or [])
+    fallback_templates = [
+        {
+            "question": f"At its most fundamental level, what is the primary role of '{concept_name}' in AI systems?",
+            "options": [
+                f"It provides structured representation and computation for {concept_name}.",
+                f"It randomly drops parameters to decrease model size.",
+                f"It removes non-linearity to enforce strictly constant outputs.",
+                f"It is only used during offline data collection."
+            ],
+            "answer_index": 0,
+            "explanation_hint": f"{concept_name} provides the foundational mechanism needed for modern AI models to process representations."
+        },
+        {
+            "question": f"Which of the following best describes the core intuition behind '{concept_name}'?",
+            "options": [
+                f"{concept_desc or 'It is a fundamental operational building block in machine learning.'}",
+                "It guarantees zero loss on any dataset without training.",
+                "It bypasses tensor operations entirely.",
+                "It is a deprecated technique not used in modern deep learning."
+            ],
+            "answer_index": 0,
+            "explanation_hint": f"Reviewing the basic definition: {concept_desc or concept_name}."
+        },
+        {
+            "question": f"When implementing '{concept_name}', what basic input-output relationship is expected?",
+            "options": [
+                "Inputs are systematically transformed according to mathematical rules to produce task-relevant features.",
+                "Inputs must always be 1-dimensional binary values.",
+                "Outputs are unconstrained random values.",
+                "No transformation occurs; data is passed unmodified."
+            ],
+            "answer_index": 0,
+            "explanation_hint": f"Operations in {concept_name} map inputs into useful feature spaces."
+        },
+        {
+            "question": f"Why do machine learning practitioners rely on '{concept_name}' when designing models?",
+            "options": [
+                f"It provides mathematical rigor and predictable transformations for learning {concept_name}.",
+                "It eliminates the need for gradient descent and loss functions.",
+                "It prevents models from having more than a single parameter.",
+                "It is only required for legacy CPU systems."
+            ],
+            "answer_index": 0,
+            "explanation_hint": f"{concept_name} ensures predictable, mathematically stable representations."
+        },
+        {
+            "question": f"Which statement is TRUE regarding the foundational properties of '{concept_name}'?",
+            "options": [
+                f"Understanding {concept_name} provides the basis for understanding more complex deep learning layers.",
+                "It is strictly an empirical rule of thumb with no theoretical justification.",
+                "It only applies to unsupervised clustering.",
+                "It requires all matrices to be non-invertible."
+            ],
+            "answer_index": 0,
+            "explanation_hint": f"{concept_name} forms the building block for modern deep learning architectures."
+        }
+    ]
+
+    # Select template not previously used in this session
+    chosen = None
+    for tmpl in fallback_templates:
+        if tmpl["question"] not in prev_set:
+            chosen = tmpl
+            break
+    if not chosen:
+        chosen = fallback_templates[len(prev_set) % len(fallback_templates)]
+
+    return {
+        "id": f"gen_scaffold_{concept_id}_{uuid.uuid4().hex[:6]}",
+        "concept": concept_id,
+        "difficulty": 1,
+        "type": "mcq",
+        "question": chosen["question"],
+        "options": chosen["options"],
+        "answer_index": chosen["answer_index"],
+        "explanation_hint": chosen["explanation_hint"],
+        "generated": True,
+    }
 
 
 def explain(
@@ -118,24 +359,24 @@ A student just answered a practice question about "{concept_name}".
 
     client = get_client()
     if client is not None:
-        try:
-            from google.genai import types
+        from google.genai import types
 
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    max_output_tokens=450,
-                    temperature=0.35,
-                ),
-            )
-            text = (response.text or "").strip()
-            if text:
-                _EXPLANATION_CACHE[cache_key] = text
-                return text, False, False
-        except Exception:
-            # Fall through to question-tailored fallback
-            pass
+        for model_name in _get_models_to_try():
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=600,
+                        temperature=0.35,
+                    ),
+                )
+                text = (response.text or "").strip()
+                if text:
+                    _EXPLANATION_CACHE[cache_key] = text
+                    return text, False, False
+            except Exception:
+                continue
 
     # Question-specific structured fallback (NO repeating the question)
     fallback_parts = []

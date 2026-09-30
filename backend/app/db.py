@@ -110,6 +110,18 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
             );
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS questions (
+                id TEXT PRIMARY KEY,
+                concept_id TEXT NOT NULL,
+                difficulty INTEGER NOT NULL,
+                question TEXT NOT NULL,
+                options_json TEXT NOT NULL,
+                answer_index INTEGER NOT NULL,
+                explanation_hint TEXT,
+                created_at TEXT NOT NULL
+            );
+        """)
     conn.close()
 
 
@@ -543,3 +555,94 @@ def get_next_trace_step(session_id: str, db_path: Optional[Path] = None) -> int:
     if row and row["max_step"] is not None:
         return int(row["max_step"]) + 1
     return 1
+
+
+def save_question(q_dict: Dict[str, Any], db_path: Optional[Path] = None) -> None:
+    """Persist a question to the database."""
+    if not q_dict or "id" not in q_dict or "question" not in q_dict:
+        return
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_connection(db_path)
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO questions (id, concept_id, difficulty, question, options_json, answer_index, explanation_hint, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                question = excluded.question,
+                options_json = excluded.options_json,
+                answer_index = excluded.answer_index,
+                explanation_hint = excluded.explanation_hint
+            """,
+            (
+                q_dict["id"],
+                q_dict.get("concept", ""),
+                int(q_dict.get("difficulty", 1)),
+                q_dict["question"],
+                json.dumps(q_dict.get("options", [])),
+                int(q_dict.get("answer_index", 0)),
+                q_dict.get("explanation_hint", ""),
+                now_iso,
+            ),
+        )
+    conn.close()
+
+
+def get_question(question_id: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """Retrieve question record by ID."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, concept_id, difficulty, question, options_json, answer_index, explanation_hint
+        FROM questions
+        WHERE id = ?
+        """,
+        (question_id,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {
+            "id": row["id"],
+            "concept": row["concept_id"],
+            "difficulty": row["difficulty"],
+            "question": row["question"],
+            "options": json.loads(row["options_json"]),
+            "answer_index": row["answer_index"],
+            "explanation_hint": row["explanation_hint"],
+        }
+    return None
+
+
+def get_session_answered_questions(session_id: str, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Retrieve all distinct questions that have been answered in this session."""
+    conn = get_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT q.id, q.concept_id, q.difficulty, q.question, q.options_json, q.answer_index, q.explanation_hint, a.correct, a.ts
+        FROM attempts a
+        JOIN questions q ON a.question_id = q.id
+        WHERE a.session_id = ?
+        ORDER BY a.ts ASC
+        """,
+        (session_id,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [
+        {
+            "id": r["id"],
+            "concept": r["concept_id"],
+            "difficulty": r["difficulty"],
+            "question": r["question"],
+            "options": json.loads(r["options_json"]),
+            "answer_index": r["answer_index"],
+            "explanation_hint": r["explanation_hint"],
+            "correct": bool(r["correct"]),
+            "ts": r["ts"],
+        }
+        for r in rows
+    ]
+
