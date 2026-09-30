@@ -21,10 +21,18 @@
     --accent-border: #e5b9aa;
     --accent-text: #a3442f;
 
-    /* Secondary Accent — Indigo */
+    /* Secondary Accent — Indigo / Blue */
     --indigo: #3e7180;
     --indigo-dim: #e7f0f1;
     --indigo-glow: rgba(62, 113, 128, 0.12);
+    --indigo-border: #acc2c8;
+    --indigo-text: #2f5966;
+
+    /* Interactive Selection State (Pure Blue: distinct from both green & red) */
+    --select-blue: #2563eb;
+    --select-blue-dim: #eff6ff;
+    --select-blue-border: #93c5fd;
+    --select-blue-text: #1e40af;
 
     /* Text */
     --text-primary: #24312c;

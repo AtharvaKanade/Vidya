@@ -72,15 +72,15 @@ export default function SelfRatingModal({ isOpen, concept, onClose, onSubmitRati
                 onClick={() => setRating(lvl.value)}
                 className="w-full flex items-center justify-between p-3 rounded-lg text-left transition-all"
                 style={{
-                  background: isSelected ? 'var(--accent-dim)' : 'var(--bg-subtle)',
-                  border: isSelected ? '1px solid var(--accent-border)' : '1px solid var(--border-dim)',
-                  color: isSelected ? 'var(--accent-text)' : 'var(--text-primary)'
+                  background: isSelected ? 'var(--select-blue-dim)' : 'var(--bg-subtle)',
+                  border: isSelected ? '1px solid var(--select-blue-border)' : '1px solid var(--border-dim)',
+                  color: isSelected ? 'var(--select-blue-text)' : 'var(--text-primary)'
                 }}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-lg">{lvl.emoji}</span>
                   <div>
-                    <div className="text-xs sm:text-sm font-semibold" style={{ color: isSelected ? 'var(--accent)' : 'var(--text-primary)' }}>
+                    <div className="text-xs sm:text-sm font-semibold" style={{ color: isSelected ? 'var(--select-blue)' : 'var(--text-primary)' }}>
                       {lvl.label}
                     </div>
                     <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -91,7 +91,7 @@ export default function SelfRatingModal({ isOpen, concept, onClose, onSubmitRati
                 <span
                   className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono font-bold shrink-0"
                   style={{
-                    background: isSelected ? 'var(--accent)' : 'var(--bg-surface)',
+                    background: isSelected ? 'var(--select-blue)' : 'var(--bg-surface)',
                     color: isSelected ? '#ffffff' : 'var(--text-muted)',
                     border: isSelected ? 'none' : '1px solid var(--border-mid)'
                   }}
