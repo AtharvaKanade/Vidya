@@ -112,7 +112,7 @@ export default function TutorView({
   const strokeDashoffset = circumference - (currentConcept.p_known * circumference);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 animate-fade-in-up" style={{ paddingTop: '6rem' }}>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-24 animate-fade-in-up tutor-workspace">
       
       {/* 2-Column Responsive Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
