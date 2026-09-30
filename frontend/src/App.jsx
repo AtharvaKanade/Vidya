@@ -126,17 +126,7 @@ export default function App() {
     : 0;
 
   return (
-    <div className="grain-root min-h-[100dvh] relative" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      {/* Ambient glow — emerald top & indigo bottom-right */}
-      <div
-        className="glow-emerald fixed top-0 left-1/2 -translate-x-1/2 pointer-events-none z-0"
-        style={{ width: '900px', height: '480px' }}
-      />
-      <div
-        className="glow-indigo fixed -bottom-32 -right-32 pointer-events-none z-0"
-        style={{ width: '600px', height: '600px' }}
-      />
-
+    <div className="app-shell min-h-[100dvh]" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -147,12 +137,12 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="relative z-10">
+      <main>
         {/* Error notification */}
         {error && (
           <div className="max-w-2xl mx-auto px-4 pt-24 animate-fade-in">
             <div
-              className="p-4 rounded-2xl flex items-center justify-between gap-3"
+              className="p-4 rounded-2xl flex items-center justify-between gap-3 error-notice"
               style={{
                 background: 'var(--red-dim)',
                 border: '1px solid var(--red-border)',
