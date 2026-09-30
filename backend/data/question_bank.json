@@ -12,7 +12,7 @@
       "To recursively generate text tokens based on autoregressive probabilities."
     ],
     "answer_index": 1,
-    "explanation_hint": "The perceptron computes z = w·x + b and applies a step function."
+    "explanation_hint": "The perceptron computes z = w\u00b7x + b and applies a step function."
   },
   {
     "id": "q_nn_percep_02",
@@ -34,7 +34,7 @@
     "concept": "nn_perceptron",
     "difficulty": 3,
     "type": "mcq",
-    "question": "If perceptron weights w = [2, -1] and bias b = -1, what is the raw output step(w·x + b) for input x = [1, 2]?",
+    "question": "If perceptron weights w = [2, -1] and bias b = -1, what is the raw output step(w\u00b7x + b) for input x = [1, 2]?",
     "options": [
       "1 (since z = 2(1) - 1(2) - 1 = -1 < 0, step is 0)",
       "0 (since z = 2(1) - 1(2) - 1 = -1 < 0)",
@@ -57,7 +57,7 @@
       "The cross product vector in 3D space."
     ],
     "answer_index": 1,
-    "explanation_hint": "u · v = ||u|| ||v|| cos(theta). For unit vectors, dot product equals cosine similarity."
+    "explanation_hint": "u \u00b7 v = ||u|| ||v|| cos(theta). For unit vectors, dot product equals cosine similarity."
   },
   {
     "id": "q_nn_la_02",
@@ -73,6 +73,21 @@
     ],
     "answer_index": 1,
     "explanation_hint": "Batch dimension B is preserved: (B x D_in) @ (D_in x D_out) = (B x D_out)."
+  },
+  {
+    "id": "q_nn_la_03",
+    "concept": "nn_linear_algebra",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What happens when you multiply a matrix A by an orthogonal matrix Q (where Q^T Q = I)?",
+    "options": [
+      "It permanently collapses the rank of matrix A to 1.",
+      "It preserves vector lengths (Euclidean norms) and relative angles, representing a rigid rotation/reflection.",
+      "It sets all negative eigenvalues to zero.",
+      "It diagonalizes matrix A unconditionally."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Orthogonal matrices preserve the inner product: ||Qx||^2 = (Qx)^T (Qx) = x^T Q^T Q x = ||x||^2."
   },
   {
     "id": "q_nn_act_01",
@@ -105,6 +120,21 @@
     "explanation_hint": "For x > 0, d/dx ReLU(x) = 1, avoiding saturation and gradient vanishing seen in Sigmoid/Tanh."
   },
   {
+    "id": "q_nn_act_03",
+    "concept": "nn_activation",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is the 'Dying ReLU' problem and how does LeakyReLU or GELU resolve it?",
+    "options": [
+      "Weights overflow to infinity when inputs are positive.",
+      "Neurons outputting negative values get a zero gradient and can become permanently inactive; LeakyReLU provides a small non-zero slope for x < 0.",
+      "Softmax denominators overflow during exponentiation.",
+      "The activation function oscillates around zero causing loss divergence."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "If a neuron's pre-activation is always negative, ReLU gradient is 0, halting updates. LeakyReLU adds alpha*x for x < 0."
+  },
+  {
     "id": "q_nn_loss_01",
     "concept": "nn_loss",
     "difficulty": 1,
@@ -118,6 +148,36 @@
     ],
     "answer_index": 1,
     "explanation_hint": "Binary Cross-Entropy: -[y*log(p) + (1-y)*log(1-p)] aligns with maximum likelihood for Bernoulli trials."
+  },
+  {
+    "id": "q_nn_loss_02",
+    "concept": "nn_loss",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why is Categorical Cross-Entropy preferred over MSE for multi-class classification with Softmax outputs?",
+    "options": [
+      "Cross-Entropy has convex properties that yield steeper gradients when the model makes confident incorrect predictions.",
+      "MSE cannot be computed for vectors of length greater than 2.",
+      "Cross-Entropy eliminates the need for computing gradients.",
+      "Softmax cannot be combined with MSE algebraically."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Combining Softmax with Cross-Entropy results in a clean gradient (p - y), avoiding flat gradients when predictions are far off."
+  },
+  {
+    "id": "q_nn_loss_03",
+    "concept": "nn_loss",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "If a multi-class model predicts probability p_k = 0.01 for the true ground-truth class k, what is the cross-entropy loss contribution -log(p_k)?",
+    "options": [
+      "0.01",
+      "~4.61 (natural log: -ln(0.01) = 4.605)",
+      "-0.01",
+      "0.00"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "-ln(0.01) = ln(100) \u2248 4.605, showing heavy penalization for confident wrong predictions."
   },
   {
     "id": "q_nn_grad_01",
@@ -135,6 +195,36 @@
     "explanation_hint": "theta_new = theta_old - eta * grad(Loss), stepping opposite to the gradient to minimize loss."
   },
   {
+    "id": "q_nn_grad_02",
+    "concept": "nn_gradient_descent",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is the primary risk of setting the learning rate (eta) too high in gradient descent?",
+    "options": [
+      "The model will converge instantly to the global minimum.",
+      "Parameter updates will oscillate wildly and cause the loss to diverge.",
+      "The gradients will mathematically collapse to zero.",
+      "Memory usage will increase exponentially."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "An excessively large learning rate overshoots valleys in the loss landscape, leading to oscillation and explosion."
+  },
+  {
+    "id": "q_nn_grad_03",
+    "concept": "nn_gradient_descent",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "How does Mini-batch Gradient Descent differ from pure Batch Gradient Descent and pure Stochastic Gradient Descent (SGD)?",
+    "options": [
+      "It computes gradients on intermediate subsets (e.g. 32-256 samples), balancing vectorization efficiency with stochastic regularization.",
+      "It only updates weights on odd-numbered epochs.",
+      "It computes gradients without evaluating the loss function.",
+      "It uses a separate learning rate for every single training example."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Mini-batches exploit GPU tensor parallelism while providing noisy gradient updates that help escape shallow local minima."
+  },
+  {
     "id": "q_nn_backprop_01",
     "concept": "nn_backprop",
     "difficulty": 2,
@@ -143,11 +233,401 @@
     "options": [
       "Bayes' Theorem",
       "The Multivariable Calculus Chain Rule",
-      "L'Hôpital's Rule",
+      "L'H\u00f4pital's Rule",
       "Taylor Series Expansion"
     ],
     "answer_index": 1,
     "explanation_hint": "Backprop uses the chain rule: dL/dw_i = (dL/dy) * (dy/dz) * (dz/dw_i) to propagate gradients backwards."
+  },
+  {
+    "id": "q_nn_backprop_02",
+    "concept": "nn_backprop",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "During neural network training, in what order do information and gradients flow?",
+    "options": [
+      "Inputs and gradients both flow from input layer to output layer.",
+      "Forward pass computes activations from input to output; Backward pass computes gradients from output to input.",
+      "Gradients are computed first, followed by feature extraction in the forward pass.",
+      "Forward and backward passes occur simultaneously on separate random subsets of layers."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Forward pass: x -> z -> a -> Loss. Backward pass: dL/da -> dL/dz -> dL/dw."
+  },
+  {
+    "id": "q_nn_backprop_03",
+    "concept": "nn_backprop",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "If layer activation a = sigma(z) uses Sigmoid, where sigma'(z) = sigma(z)(1 - sigma(z)), what is the maximum value of sigma'(z)?",
+    "options": [
+      "1.0 at z = 0",
+      "0.25 at z = 0",
+      "0.50 at z = 1",
+      "0.00 at z = infinity"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "At z = 0, sigma(0) = 0.5, so sigma'(0) = 0.5 * 0.5 = 0.25. Multiplying many 0.25 factors across layers causes vanishing gradients."
+  },
+  {
+    "id": "q_nn_layers_01",
+    "concept": "nn_layers",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is a hidden layer in a feedforward neural network?",
+    "options": [
+      "A layer of weights that is kept encrypted during inference.",
+      "Any intermediate layer between the network's input features and its final output predictions.",
+      "A backup layer that activates only when the primary network fails.",
+      "A layer that does not perform any mathematical operations."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Hidden layers transform representations internally without direct external exposure."
+  },
+  {
+    "id": "q_nn_layers_02",
+    "concept": "nn_layers",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why is increasing network depth (number of layers) often more parameter-efficient than simply making a single hidden layer extremely wide?",
+    "options": [
+      "Deeper networks compose hierarchical features (e.g. edges -> textures -> parts -> objects) exponentially efficiently.",
+      "Deep networks do not require matrix multiplication.",
+      "Wider networks cannot be trained using gradient descent.",
+      "Depth reduces the floating-point precision needed for weights."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Hierarchical composition allows deep networks to express complex functions with exponentially fewer parameters."
+  },
+  {
+    "id": "q_nn_layers_03",
+    "concept": "nn_layers",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "According to the Universal Approximation Theorem, what can a feedforward network with a single hidden layer of sufficient width approximate?",
+    "options": [
+      "Only linear functions in Euclidean space.",
+      "Any continuous function on a compact subset of R^n to arbitrary precision, given suitable non-linear activations.",
+      "Any non-computable Turing function.",
+      "Only periodic sinusoidal waves."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Cybenko (1989) & Hornik (1991) proved universal approximation for single-hidden-layer networks with non-linear activations."
+  },
+  {
+    "id": "q_nn_overfit_01",
+    "concept": "nn_overfitting",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the classic signature of overfitting during model training?",
+    "options": [
+      "Both training loss and validation loss decrease steadily together.",
+      "Training loss continues to decrease while validation loss begins to rise.",
+      "Training loss and validation loss both diverge to infinity on epoch 1.",
+      "The model takes 0 milliseconds to make a prediction."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Overfitting occurs when the model memorizes training noise rather than learning generalizable patterns."
+  },
+  {
+    "id": "q_nn_overfit_02",
+    "concept": "nn_overfitting",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "In the Bias-Variance tradeoff, what does high variance imply about a model?",
+    "options": [
+      "The model is too simplistic to capture the underlying trend (underfitting).",
+      "The model is overly sensitive to small fluctuations in the training data, leading to poor generalization.",
+      "The model has zero parameters.",
+      "The model's predictions are completely deterministic and constant."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "High variance corresponds to overfitting: high model capacity fitting training noise."
+  },
+  {
+    "id": "q_nn_overfit_03",
+    "concept": "nn_overfitting",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "How does Early Stopping combat overfitting during the training process?",
+    "options": [
+      "It terminates training when validation metric stops improving for a specified patience window, restoring the best checkpoint.",
+      "It cuts the learning rate to zero immediately on epoch 1.",
+      "It drops half the training dataset after every 10 steps.",
+      "It forces all weights to zero when loss reaches a fixed threshold."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Early stopping monitors validation loss and halts before the model begins memorizing training noise."
+  },
+  {
+    "id": "q_nn_dropout_01",
+    "concept": "nn_dropout",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What operation does a Dropout layer perform during the training phase?",
+    "options": [
+      "Permanently deletes half the weight tensors from disk.",
+      "Randomly sets a fraction p of neuron activations to zero at each forward pass.",
+      "Drops the highest learning rate in the optimizer.",
+      "Normalizes feature channels to have unit norm."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Dropout randomly deactivates units with probability p during training to prevent co-adaptation of features."
+  },
+  {
+    "id": "q_nn_dropout_02",
+    "concept": "nn_dropout",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "How is Dropout handled during inference (testing/evaluation)?",
+    "options": [
+      "Dropout continues randomly dropping neurons with probability p.",
+      "Dropout is disabled; all neurons are active, and activations are scaled (or inverted dropout was used during training).",
+      "The network randomly selects one single hidden layer to execute.",
+      "All weights are halved at inference time."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "During eval, dropout is turned off (eval mode) to yield deterministic ensemble-like predictions."
+  },
+  {
+    "id": "q_nn_dropout_03",
+    "concept": "nn_dropout",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Inverted Dropout' and why is it standard in modern deep learning frameworks (PyTorch/TensorFlow)?",
+    "options": [
+      "It drops weights instead of activations.",
+      "It scales retained activations by 1/(1-p) during training so that no scaling arithmetic is needed at inference time.",
+      "It increases dropout probability as training progresses.",
+      "It applies dropout only during the backward pass."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Scaling by 1/(1-p) during training keeps expected activation magnitudes identical at train and test time."
+  },
+  {
+    "id": "q_nn_bn_01",
+    "concept": "nn_batch_norm",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What does Batch Normalization (BatchNorm) normalize across?",
+    "options": [
+      "Across all layers in the network simultaneously.",
+      "Across the mini-batch dimension for each feature channel, achieving zero mean and unit variance.",
+      "Across the dataset's file size on disk.",
+      "Across sequence length in text generation."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "BatchNorm calculates mean and variance across the batch dimension B for each activation dimension."
+  },
+  {
+    "id": "q_nn_bn_02",
+    "concept": "nn_batch_norm",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What are the learnable parameters in a Batch Normalization layer?",
+    "options": [
+      "Gamma (scale) and Beta (shift)",
+      "Alpha (slope) and Epsilon (smoothing)",
+      "Learning rate and weight decay",
+      "Kernel size and stride"
+    ],
+    "answer_index": 0,
+    "explanation_hint": "BatchNorm computes y = gamma * ((x - mu) / sigma) + beta, allowing the network to recover the identity mapping if needed."
+  },
+  {
+    "id": "q_nn_bn_03",
+    "concept": "nn_batch_norm",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "Why does Batch Normalization behave differently at inference time compared to training time?",
+    "options": [
+      "At test time, it uses running population statistics (running mean and variance) accumulated during training rather than batch statistics.",
+      "At test time, it sets gamma and beta to 0.",
+      "At test time, it recalculates statistics across the entire test set simultaneously.",
+      "At test time, it is converted into a softmax layer."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "For single-sample inference, batch statistics are ill-defined; running exponential moving averages provide stability."
+  },
+  {
+    "id": "q_nn_cnn_01",
+    "concept": "nn_cnn_basics",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What key property differentiates a 2D convolutional layer from a standard fully-connected (dense) layer for images?",
+    "options": [
+      "Convolutional layers use shared spatial weights (kernels) and local receptive fields, preserving 2D spatial structure.",
+      "Convolutional layers do not require activation functions.",
+      "Convolutional layers only work on 1D audio signals.",
+      "Convolutional layers cannot be trained with backpropagation."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Weight sharing and translation equivariance make CNNs dramatically more parameter-efficient on grid data."
+  },
+  {
+    "id": "q_nn_cnn_02",
+    "concept": "nn_cnn_basics",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Given an input image of size 32x32, a 3x3 filter, stride 1, and no padding (padding=0), what is the output spatial feature map dimension?",
+    "options": [
+      "32x32",
+      "30x30",
+      "28x28",
+      "16x16"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Output size = floor((W - K + 2P)/S) + 1 = (32 - 3 + 0)/1 + 1 = 30."
+  },
+  {
+    "id": "q_nn_cnn_03",
+    "concept": "nn_cnn_basics",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'translation equivariance' in Convolutional Neural Networks?",
+    "options": [
+      "If an input feature shifts spatially by (dx, dy), the output feature map representation shifts by the exact same amount.",
+      "The network translates text between languages automatically.",
+      "The weights change position depending on the image contrast.",
+      "The loss function is invariant to floating-point rounding."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Convolutions commute with translations: f(g(x)) = g(f(x)) for spatial shift operators."
+  },
+  {
+    "id": "q_nn_pool_01",
+    "concept": "nn_pooling",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the primary objective of a Max-Pooling layer in a CNN architecture?",
+    "options": [
+      "To downsample spatial dimensions, reducing computation and introducing minor translation invariance.",
+      "To increase the number of feature channels by a factor of 2.",
+      "To apply L2 regularization to kernel weights.",
+      "To normalize activation gradients to zero mean."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Max-pooling reduces H and W spatial dimensions by selecting the maximum activation in each local window."
+  },
+  {
+    "id": "q_nn_pool_02",
+    "concept": "nn_pooling",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "How does pooling affect the 'receptive field' of subsequent deeper layers in a CNN?",
+    "options": [
+      "It shrinks the receptive field to a single pixel.",
+      "It expands the effective receptive field, allowing subsequent filters to view larger regions of the original input image.",
+      "It has zero impact on receptive field size.",
+      "It causes the receptive field to become non-deterministic."
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Each spatial downsampling step doubles the spatial span that subsequent 3x3 filters cover relative to the raw input."
+  },
+  {
+    "id": "q_nn_pool_03",
+    "concept": "nn_pooling",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is Global Average Pooling (GAP) and why is it often placed before final classification instead of a Flatten + Dense layer?",
+    "options": [
+      "GAP computes the spatial average across each entire feature map (H x W -> 1 x 1), drastically reducing parameters and overfitting risk.",
+      "GAP computes the average across all images in the entire dataset.",
+      "GAP multiplies feature maps by a learned attention matrix.",
+      "GAP converts 2D convolutions into recurrent networks."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "GAP outputs 1 scalar per channel, eliminating millions of dense connection parameters (pioneered in Network in Network and ResNet)."
+  },
+  {
+    "id": "q_nn_train_01",
+    "concept": "nn_training_loop",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "In a standard PyTorch training loop, what is the purpose of calling `optimizer.zero_grad()` before `loss.backward()`?",
+    "options": [
+      "To reset accumulated gradient buffers to zero, preventing gradients from accumulating across consecutive batches.",
+      "To set all model weights to zero for initialization.",
+      "To clear GPU VRAM cache completely.",
+      "To reset the learning rate schedule."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "PyTorch accumulates gradients by default (`+=`); zero_grad() resets them before backpropagation."
+  },
+  {
+    "id": "q_nn_train_02",
+    "concept": "nn_training_loop",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is the correct sequential order of operations in a standard deep learning mini-batch step?",
+    "options": [
+      "optimizer.step() -> loss.backward() -> forward pass -> zero_grad()",
+      "optimizer.zero_grad() -> forward pass -> loss computation -> loss.backward() -> optimizer.step()",
+      "loss.backward() -> forward pass -> optimizer.step() -> zero_grad()",
+      "forward pass -> optimizer.step() -> zero_grad() -> loss.backward()"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Zero gradients -> compute predictions -> compute loss -> compute gradients (backward) -> update parameters (step)."
+  },
+  {
+    "id": "q_nn_train_03",
+    "concept": "nn_training_loop",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Gradient Accumulation' and when is it employed in training loops?",
+    "options": [
+      "Running multiple forward and backward passes without zeroing gradients, simulating a larger effective batch size when VRAM is constrained.",
+      "Adding gradients across different models in an ensemble.",
+      "Summing gradients over multiple epochs before saving checkpoints.",
+      "Replacing loss backpropagation with numerical approximations."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Gradient accumulation allows training large models with effective batch size K*B by calling step() every K mini-batches."
+  },
+  {
+    "id": "q_nn_opt_01",
+    "concept": "nn_optimizers",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the primary role of the Momentum term in stochastic gradient descent (SGD with Momentum)?",
+    "options": [
+      "To accelerate gradient vectors in directions of consistent descent and dampen oscillations in ravine-like loss landscapes.",
+      "To randomly perturb weights to test gradient correctness.",
+      "To decrease the number of trainable layers.",
+      "To normalize activation outputs across batches."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Momentum accumulates an exponentially decaying moving average of past gradients: v = beta*v + (1-beta)*g."
+  },
+  {
+    "id": "q_nn_opt_02",
+    "concept": "nn_optimizers",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "How does the Adam optimizer combine the principles of Momentum and RMSProp?",
+    "options": [
+      "It computes both first-moment estimates (mean of gradients) and second-moment estimates (uncentered variance of gradients) with bias corrections.",
+      "It switches between SGD and L-BFGS based on training loss magnitude.",
+      "It uses genetic algorithms for weight selection.",
+      "It computes exact Hessian matrix inversions at every step."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Adam maintains m_t (first moment / momentum) and v_t (second moment / RMSProp scaling) with bias-corrected updates."
+  },
+  {
+    "id": "q_nn_opt_03",
+    "concept": "nn_optimizers",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is the key difference between Adam and AdamW (Loshchilov & Hutter, 2017)?",
+    "options": [
+      "AdamW decouples weight decay from the gradient update, applying true L2 shrinkage directly to weights rather than blending it into gradient moments.",
+      "AdamW only works on transformer attention weights.",
+      "AdamW removes the second-moment variance accumulator.",
+      "AdamW uses fixed learning rates without warmups."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Standard Adam with L2 regularization distorts scale-adapted weights; AdamW applies direct weight decay theta = theta - lr*lambda*theta."
   },
   {
     "id": "q_tr_tok_01",
@@ -165,6 +645,36 @@
     "explanation_hint": "BPE strikes an optimal balance between character-level and word-level vocabularies."
   },
   {
+    "id": "q_tr_tok_02",
+    "concept": "tr_tokenization",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "How does the Byte-Pair Encoding (BPE) algorithm iteratively build its vocabulary during training?",
+    "options": [
+      "It starts with base characters and iteratively merges the most frequently co-occurring adjacent pair of tokens.",
+      "It parses syntax trees using context-free grammars.",
+      "It clusters words using k-means on BERT embeddings.",
+      "It randomly splits words into 3-letter substrings."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "BPE counts all adjacent symbol pairs in the corpus and iteratively replaces the most frequent pair with a new merged symbol."
+  },
+  {
+    "id": "q_tr_tok_03",
+    "concept": "tr_tokenization",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "Why does Byte-level BPE (as used in GPT-2/3/4 and LLaMA) avoid Out-Of-Vocabulary issues entirely?",
+    "options": [
+      "Its base vocabulary includes all 256 raw byte values (0x00 to 0xFF), so any arbitrary UTF-8 string can always be represented.",
+      "It translates foreign characters into English phonetic equivalents.",
+      "It uses a dictionary with every word from all languages.",
+      "It ignores any unrecognized Unicode characters during encoding."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Because any text can be represented as bytes, having a 256-byte base vocabulary guarantees zero unknown token (<unk>) errors."
+  },
+  {
     "id": "q_tr_emb_01",
     "concept": "tr_embedding",
     "difficulty": 1,
@@ -178,6 +688,126 @@
     ],
     "answer_index": 0,
     "explanation_hint": "An embedding table maps each token ID index to a learned continuous vector representation."
+  },
+  {
+    "id": "q_tr_emb_02",
+    "concept": "tr_embedding",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "In the original Transformer paper (Vaswani et al., 2017), why are embedding weights multiplied by sqrt(d_model) before adding positional encodings?",
+    "options": [
+      "To scale token embedding variance to match the magnitude of the unit sinusoidal positional encodings.",
+      "To invert the softmax temperature.",
+      "To ensure embeddings sum to zero.",
+      "To prevent integer overflow in GPU registers."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Learned embeddings have small initialized variance (~1/d_model); scaling by sqrt(d_model) prevents positional signals from overpowering them."
+  },
+  {
+    "id": "q_tr_emb_03",
+    "concept": "tr_embedding",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Weight Tying' (Press & Wolf, 2017) between the input embedding matrix and the final output language model projection layer?",
+    "options": [
+      "Reusing the exact same weight matrix (V x d_model) for both input token embedding and output logit projection, saving millions of parameters.",
+      "Tying encoder weights to decoder weights via skip connections.",
+      "Sharing weights across all self-attention heads.",
+      "Constraining all embedding vectors to have identical norms."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Weight tying shares parameters between the input embedding table and output linear head, improving perplexity and cutting model size."
+  },
+  {
+    "id": "q_tr_s2s_01",
+    "concept": "tr_seq2seq",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the fundamental task of a Sequence-to-Sequence (Seq2Seq) model?",
+    "options": [
+      "To map a variable-length input sequence (e.g. French sentence) to a variable-length output sequence (e.g. English translation).",
+      "To classify fixed-size 32x32 images into 10 categories.",
+      "To cluster unorganized tabular database rows.",
+      "To predict a single continuous scalar from a set of features."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Seq2Seq models transform input sequences to target sequences across tasks like translation, summarization, and dialogue."
+  },
+  {
+    "id": "q_tr_s2s_02",
+    "concept": "tr_seq2seq",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What was the critical architectural limitation of early RNN/LSTM Seq2Seq models (Sutskever et al., 2014) before Attention was introduced?",
+    "options": [
+      "The fixed-size context bottleneck vector could not retain information from long source sequences.",
+      "RNNs could not process batches on GPUs.",
+      "RNNs could only generate fixed-length 5-word sentences.",
+      "RNNs could not use gradient descent."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Compressing an entire source sentence into a single static hidden state h_T created an information bottleneck on long inputs."
+  },
+  {
+    "id": "q_tr_s2s_03",
+    "concept": "tr_seq2seq",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Teacher Forcing' during Seq2Seq training, and what risk does it introduce at test time (Exposure Bias)?",
+    "options": [
+      "Feeding ground-truth previous target tokens during training rather than the model's own generated tokens; at test time, errors can cascade.",
+      "Using human annotators in real-time to adjust weights.",
+      "Forcing the encoder to train twice as fast as the decoder.",
+      "Restricting decoding to only top-1 greedy search."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Teacher forcing speeds convergence during training, but creates exposure bias because the model never practiced recovering from its own mistakes."
+  },
+  {
+    "id": "q_tr_att_int_01",
+    "concept": "tr_attention_intuition",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the core intuitive mechanism of the Attention mechanism in language models?",
+    "options": [
+      "It computes dynamic, content-dependent relevance weights allowing each token to focus on other relevant tokens regardless of distance.",
+      "It forces the model to ignore all punctuation marks.",
+      "It compresses the sentence into a fixed 10-dimensional vector.",
+      "It reads text strictly from right to left."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Attention replaces static distance decay with dynamic content-addressable weighting across the sequence."
+  },
+  {
+    "id": "q_tr_att_int_02",
+    "concept": "tr_attention_intuition",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why does self-attention have an advantage over Recurrent Neural Networks (RNNs) in capturing long-range dependencies?",
+    "options": [
+      "The maximum path length between any two tokens in self-attention is O(1) direct connection, compared to O(N) sequential steps in RNNs.",
+      "Self-attention does not require matrix multiplications.",
+      "Self-attention uses fewer parameters than a single perceptron.",
+      "Self-attention executes without GPU memory allocation."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Direct pairwise interactions eliminate vanishing gradient degradation over long token distances."
+  },
+  {
+    "id": "q_tr_att_int_03",
+    "concept": "tr_attention_intuition",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is the computational and memory complexity of standard full self-attention with respect to sequence length N?",
+    "options": [
+      "O(N) linear time and memory",
+      "O(N^2) quadratic time and memory",
+      "O(log N) logarithmic time",
+      "O(N^3) cubic time"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Computing the N x N attention matrix QK^T requires O(N^2 d) operations and O(N^2) memory storage."
   },
   {
     "id": "q_tr_attn_01",
@@ -195,6 +825,396 @@
     "explanation_hint": "For large d_k, dot products have variance d_k; scaling by sqrt(d_k) restores variance to 1 and stabilizes softmax gradients."
   },
   {
+    "id": "q_tr_attn_02",
+    "concept": "tr_dot_product_attn",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What mathematical operation ensures that the rows of the attention weight matrix sum to 1.0?",
+    "options": [
+      "Sigmoid activation applied elementwise",
+      "Softmax function applied across the key sequence dimension",
+      "Batch normalization along feature columns",
+      "ReLU activation"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Softmax normalizes raw logits into a valid probability distribution over keys."
+  },
+  {
+    "id": "q_tr_attn_03",
+    "concept": "tr_dot_product_attn",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "If Query Q and Key K have dimension (N, d_k), and Value V has dimension (N, d_v), what is the shape of the final output matrix Softmax(QK^T / sqrt(d_k))V?",
+    "options": [
+      "(N, N)",
+      "(N, d_v)",
+      "(d_k, d_v)",
+      "(N, d_k)"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "Attention weights are (N, N); multiplying by V (N, d_v) produces output shape (N, d_v)."
+  },
+  {
+    "id": "q_tr_qkv_01",
+    "concept": "tr_qkv",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "In the Query-Key-Value retrieval analogy, what does the 'Query' represent?",
+    "options": [
+      "The information that the current token is searching for from other tokens.",
+      "The static dictionary index of the token.",
+      "The ground-truth target label.",
+      "The learning rate decay schedule."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Query = what am I looking for; Key = what do I contain; Value = what information do I communicate if matched."
+  },
+  {
+    "id": "q_tr_qkv_02",
+    "concept": "tr_qkv",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "How are Query, Key, and Value matrices generated from input embeddings X in self-attention?",
+    "options": [
+      "Through learned linear projections: Q = X @ W_Q, K = X @ W_K, V = X @ W_V.",
+      "By taking discrete Fourier transforms of X.",
+      "By splitting X into three equal slices along the sequence dimension.",
+      "Using static, non-learnable random Gaussian matrices."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Linear projection matrices W_Q, W_K, W_V project token embeddings into specialized query, key, and value representation spaces."
+  },
+  {
+    "id": "q_tr_qkv_03",
+    "concept": "tr_qkv",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "Why are separate linear projections (W_Q, W_K, W_V) necessary instead of computing dot products directly between raw token embeddings X @ X^T?",
+    "options": [
+      "Distinct projections allow tokens to represent different semantic roles (e.g. an active subject looking for its verb vs serving as a passive object).",
+      "Direct dot products X @ X^T are mathematically undefined.",
+      "Without projections, GPU kernels cannot parallelize matrix multiplication.",
+      "Projections guarantee that all attention scores are non-negative."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Linear projections grant asymmetric flexibility: token A looking for token B does not require token B to look for token A with identical weight."
+  },
+  {
+    "id": "q_tr_mh_01",
+    "concept": "tr_multihead",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the primary motivation for Multi-Head Attention over a single large attention head?",
+    "options": [
+      "It allows the model to jointly attend to information from different representation subspaces (e.g. syntactic, coreference, semantic relations) simultaneously.",
+      "It reduces total parameter count by 90%.",
+      "It eliminates the need for feedforward layers.",
+      "It forces all attention weights to be integers."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Multiple heads project into distinct d_k dimensional subspaces, capturing diverse relational linguistic patterns."
+  },
+  {
+    "id": "q_tr_mh_02",
+    "concept": "tr_multihead",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "If d_model = 768 and the model uses h = 12 attention heads, what is the dimension d_k of each individual head?",
+    "options": [
+      "768",
+      "64 (since d_k = d_model / h = 768 / 12)",
+      "12",
+      "128"
+    ],
+    "answer_index": 1,
+    "explanation_hint": "In standard transformers, d_k = d_model / h = 768 / 12 = 64, keeping total computational cost equivalent to single-head attention."
+  },
+  {
+    "id": "q_tr_mh_03",
+    "concept": "tr_multihead",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "How are the outputs of the h parallel attention heads combined before passing to the feedforward network?",
+    "options": [
+      "They are concatenated along the feature dimension and multiplied by output projection matrix W_O: Concat(head_1, ..., head_h) @ W_O.",
+      "They are averaged elementwise with no learned parameters.",
+      "Only the head with the highest maximum attention score is retained.",
+      "They are multiplied together elementwise."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Concatenation restores the original d_model width, and projection matrix W_O blends subspace features."
+  },
+  {
+    "id": "q_tr_pos_01",
+    "concept": "tr_positional_enc",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "Why do Transformer architectures strictly require Positional Encodings?",
+    "options": [
+      "Because self-attention is permutation-invariant and has no inherent sense of word order or sequence position.",
+      "To normalize token embeddings between -1 and 1.",
+      "To prevent vanishing gradients in deep layers.",
+      "To translate tokens between uppercase and lowercase."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Without positional encodings, 'dog bites man' and 'man bites dog' produce identical self-attention representations."
+  },
+  {
+    "id": "q_tr_pos_02",
+    "concept": "tr_positional_enc",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is an advantage of the sinusoidal positional encodings used in the original Transformer paper?",
+    "options": [
+      "They allow the model to easily learn to attend by relative positions, since PE(pos + k) can be represented as a linear function of PE(pos).",
+      "They require training millions of extra parameters.",
+      "They restrict maximum sequence length to 128 tokens.",
+      "They completely replace token embeddings."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Trigonometric angle addition identities allow linear transformations to project relative distance offsets."
+  },
+  {
+    "id": "q_tr_pos_03",
+    "concept": "tr_positional_enc",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is Rotary Position Embedding (RoPE, Su et al., 2021) as utilized in LLaMA and Mistral?",
+    "options": [
+      "It applies a complex rotation to Query and Key vectors in 2D chunks, encoding relative position directly through the inner product <R_m q, R_n k> = g(q, k, m - n).",
+      "It rotates the entire GPU memory buffer on each step.",
+      "It adds learned absolute position vectors at every attention layer.",
+      "It randomly shuffles token positions during training."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "RoPE combines absolute encoding efficiency with theoretical relative position decay properties via complex vector rotations."
+  },
+  {
+    "id": "q_tr_enc_01",
+    "concept": "tr_encoder",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What are the two primary sub-layers in each Transformer Encoder block?",
+    "options": [
+      "Multi-Head Self-Attention and a Position-wise Feed-Forward Network (FFN), each with residual connections and LayerNorm.",
+      "Convolutional layer and Max-Pooling layer.",
+      "Recurrent LSTM cell and Dropout layer.",
+      "Linear layer and K-Means clustering unit."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Each encoder block contains Multi-Head Self-Attention followed by a two-layer feedforward MLP, wrapped in Add & Norm."
+  },
+  {
+    "id": "q_tr_enc_02",
+    "concept": "tr_encoder",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is the function of the residual (skip) connections (x + Sublayer(x)) in Transformer blocks?",
+    "options": [
+      "They allow gradients to flow directly through the identity shortcut during backpropagation, enabling stable training of very deep networks.",
+      "They eliminate the need for activation functions.",
+      "They double the token sequence length.",
+      "They invert negative attention weights."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Residual connections prevent gradient decay across dozens of stacked transformer layers."
+  },
+  {
+    "id": "q_tr_enc_03",
+    "concept": "tr_encoder",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is the architectural difference between Pre-LN (LayerNorm before sublayer) and Post-LN (original Vaswani design)?",
+    "options": [
+      "Pre-LN stabilizes gradients at initialization, allowing training deep Transformers without delicate learning rate warmup schedules.",
+      "Post-LN eliminates LayerNorm entirely.",
+      "Pre-LN requires twice as many parameters.",
+      "Pre-LN can only be applied to decoder layers."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Pre-LN keeps the residual highway unnormalized, preventing exploding activation scales at deep layers."
+  },
+  {
+    "id": "q_tr_dec_01",
+    "concept": "tr_decoder",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "Why is 'Causal Masking' applied in the self-attention layer of a Transformer Decoder?",
+    "options": [
+      "To prevent the model from attending to future tokens during autoregressive generation, preserving the autoregressive property.",
+      "To mask out corrupt training data automatically.",
+      "To hide token embeddings from the optimizer.",
+      "To remove stopwords from the output."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Causal masking sets attention scores for future positions (j > i) to -infinity before softmax, ensuring predictions depend only on past tokens."
+  },
+  {
+    "id": "q_tr_dec_02",
+    "concept": "tr_decoder",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "In a Seq2Seq Transformer Decoder's Cross-Attention layer, where do the Query, Key, and Value matrices originate?",
+    "options": [
+      "Queries originate from the previous decoder layer; Keys and Values originate from the final Encoder output representations.",
+      "Queries, Keys, and Values all originate from the input prompt.",
+      "Keys originate from the decoder; Queries and Values originate from the encoder.",
+      "All three originate from a random normal distribution."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Cross-attention allows the decoder (Query) to retrieve context from the full encoded input sequence (Keys/Values)."
+  },
+  {
+    "id": "q_tr_dec_03",
+    "concept": "tr_decoder",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is the KV-Cache in LLM inference, and why does it drastically reduce token generation latency?",
+    "options": [
+      "It caches previously computed Key and Value projection tensors for past tokens so they do not need to be recomputed at each new autoregressive step.",
+      "It stores the top 100 most common English words in RAM.",
+      "It compresses weight matrices to 4-bit precision during forward pass.",
+      "It skips the feedforward network on even-numbered tokens."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "KV caching turns generation of token N from O(N^2) recomputation into an efficient O(N) forward step."
+  },
+  {
+    "id": "q_tr_pre_01",
+    "concept": "tr_pretrain",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the difference between Masked Language Modeling (MLM) and Causal Language Modeling (CLM)?",
+    "options": [
+      "MLM predicts randomly masked tokens using bidirectional context (e.g. BERT); CLM predicts the next token autoregressively left-to-right (e.g. GPT).",
+      "MLM is supervised with human labels; CLM is unsupervised.",
+      "MLM is used exclusively for computer vision.",
+      "CLM cannot be trained on GPU hardware."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "BERT masks 15% of tokens bidirectionally; GPT predicts token t given tokens 1...t-1."
+  },
+  {
+    "id": "q_tr_pre_02",
+    "concept": "tr_pretrain",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why is self-supervised pre-training on massive unlabelled text corpora the foundation of modern Large Language Models?",
+    "options": [
+      "It allows models to learn general linguistic, factual, and reasoning representations from trillions of tokens without costly manual labeling.",
+      "It eliminates all possible biases and hallucinations.",
+      "It guarantees 100% mathematical accuracy on arithmetic problems.",
+      "It reduces the parameter count of neural networks to zero."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Self-supervision leverages raw text volume to build rich world models and semantic representations."
+  },
+  {
+    "id": "q_tr_pre_03",
+    "concept": "tr_pretrain",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "According to the Chinchilla Scaling Laws (Hoffmann et al., 2022), how should model parameter count N and training tokens D be scaled for compute-optimal pretraining?",
+    "options": [
+      "Model parameters N and training tokens D should be scaled in approximately equal proportion (1:1 scaling with compute budget).",
+      "Parameters should grow 10x faster than training tokens.",
+      "Tokens should remain fixed while only parameter count scales.",
+      "Compute budget should only be allocated to increasing learning rate."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Hoffmann et al. showed many earlier models (like GPT-3 175B) were undertrained; compute-optimal scaling requires equal proportional increases in N and D."
+  },
+  {
+    "id": "q_tr_ft_01",
+    "concept": "tr_finetune",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is Instruction Fine-Tuning (SFT) in the development lifecycle of an LLM?",
+    "options": [
+      "Training a pre-trained base model on prompt-response demonstration pairs so it learns to follow instructions rather than just continuing text.",
+      "Compressing the model weights to fit on a mobile phone.",
+      "Pre-training the model on raw uncurated internet HTML dumps.",
+      "Converting the neural network into decision trees."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "SFT aligns raw base models to follow human requests, answer questions, and behave as interactive assistants."
+  },
+  {
+    "id": "q_tr_ft_02",
+    "concept": "tr_finetune",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is LoRA (Low-Rank Adaptation, Hu et al., 2021) and why is it widely used for parameter-efficient fine-tuning (PEFT)?",
+    "options": [
+      "It freezes pre-trained model weights and injects trainable low-rank rank-decomposition matrices (Delta W = B @ A) into attention layers, reducing trainable parameters by 99%.",
+      "It drops 50% of prompt tokens at inference time.",
+      "It replaces matrix multiplications with bitwise XOR gates.",
+      "It permanently removes all feedforward layers."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "LoRA approximates weight updates Delta W in low intrinsic dimension r << d, slashing fine-tuning memory and storage."
+  },
+  {
+    "id": "q_tr_ft_03",
+    "concept": "tr_finetune",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Catastrophic Forgetting' in fine-tuning, and how can it be mitigated?",
+    "options": [
+      "The model loses its broad pre-trained capabilities and general reasoning when aggressively fine-tuned on a narrow specific dataset.",
+      "The model deletes its tokenizer vocabulary file.",
+      "GPU memory corrupts model weights permanently.",
+      "The context window shrinks to 1 token."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Mitigations include parameter-efficient tuning (LoRA), lower learning rates, and mixing general pre-training replay data during fine-tuning."
+  },
+  {
+    "id": "q_tr_bg_01",
+    "concept": "tr_bert_gpt",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the primary architectural difference between BERT and GPT?",
+    "options": [
+      "BERT is an Encoder-only model with bidirectional attention; GPT is a Decoder-only model with causal unidirectional attention.",
+      "BERT is trained on images; GPT is trained on audio.",
+      "BERT has no attention layers; GPT has attention layers.",
+      "BERT generates text autoregressively; GPT cannot generate text."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "BERT reads full bidirectional context for understanding/embeddings; GPT uses causal masking for generative language modeling."
+  },
+  {
+    "id": "q_tr_bg_02",
+    "concept": "tr_bert_gpt",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "For which of the following tasks is an Encoder-only architecture (like BERT or RoBERTa) traditionally better suited than a causal decoder?",
+    "options": [
+      "Sentence embedding generation and token-level classification (e.g. Named Entity Recognition, Extractive QA).",
+      "Open-ended creative story writing.",
+      "Multi-turn chatbot dialogue continuation.",
+      "Autoregressive code completion."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Bidirectional attention allows every token representation to incorporate both left and right context simultaneously."
+  },
+  {
+    "id": "q_tr_bg_03",
+    "concept": "tr_bert_gpt",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "Why has the Decoder-only architecture (GPT/LLaMA) largely become the dominant standard for foundation models over Encoder-Decoder architectures (T5)?",
+    "options": [
+      "Decoder-only models unify in-context learning, zero-shot prompting, and generation in a simpler, compute-efficient single-stack architecture that scales cleanly.",
+      "Decoder-only models require zero floating point multiplications.",
+      "Encoder-Decoder models cannot process sequences longer than 64 tokens.",
+      "Decoders do not require softmax layers."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Causal decoder stacks provide superior parameter reuse and simplicity when scaling to hundreds of billions of parameters."
+  },
+  {
     "id": "q_rag_prompt_01",
     "concept": "rag_prompt_basics",
     "difficulty": 1,
@@ -208,6 +1228,261 @@
     ],
     "answer_index": 1,
     "explanation_hint": "Delimiters prevent the model from treating retrieved text chunks as executive system instructions."
+  },
+  {
+    "id": "q_rag_prompt_02",
+    "concept": "rag_prompt_basics",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What are the four essential structural components of an enterprise prompt template?",
+    "options": [
+      "Role/Persona, Task Instructions, Context/Data, and Output Constraints/Format.",
+      "Compiler directives, C++ pointers, SQLite query, and CSS stylesheet.",
+      "Encoder weights, Decoder mask, Softmax logits, and Loss scalar.",
+      "Token ID, Batch size, Epoch count, and Learning rate."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Structured prompt anatomy provides clear directives, boundaries, reference data, and expected output schemas."
+  },
+  {
+    "id": "q_rag_prompt_03",
+    "concept": "rag_prompt_basics",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is a 'Prompt Injection' vulnerability (Direct and Indirect)?",
+    "options": [
+      "When untrusted user input or retrieved context contains adversarial text that tricks the LLM into bypassing developer instructions or system guardrails.",
+      "When an SQL database query fails due to missing quotes.",
+      "When the prompt exceeds the GPU VRAM buffer.",
+      "When the model temperature is set to exactly 0."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Adversarial instructions embedded in retrieved data (indirect injection) can hijack model execution flow unless strictly gated."
+  },
+  {
+    "id": "q_rag_zfs_01",
+    "concept": "rag_zero_few_shot",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the difference between Zero-Shot prompting and Few-Shot prompting?",
+    "options": [
+      "Zero-shot provides only task instructions; Few-shot includes several input-output demonstration examples directly in the prompt context.",
+      "Zero-shot trains the weights with 0 epochs; Few-shot trains for 5 epochs.",
+      "Zero-shot uses temperature 0; Few-shot uses temperature 1.",
+      "Zero-shot can only answer True/False questions."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Few-shot In-Context Learning conditions the model on target formatting, style, and reasoning patterns without weight updates."
+  },
+  {
+    "id": "q_rag_zfs_02",
+    "concept": "rag_zero_few_shot",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why does providing diverse and balanced exemplars in Few-Shot prompts improve task accuracy?",
+    "options": [
+      "It mitigates majority-label bias, clarifies edge-case boundary conditions, and establishes consistent output formatting (e.g. JSON schema).",
+      "It compiles the prompt into native C++ code.",
+      "It reduces token count consumption.",
+      "It forces the model to ignore user inputs."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "LLMs are sensitive to label distribution in few-shot demonstrations; balanced examples calibrate classification priors."
+  },
+  {
+    "id": "q_rag_zfs_03",
+    "concept": "rag_zero_few_shot",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'In-Context Learning' (Brown et al., 2020) mechanistically at inference time?",
+    "options": [
+      "The model adapts its outputs through activation state updates across attention layers without any backpropagation or parameter modification.",
+      "The model fine-tunes its last linear layer during forward pass.",
+      "The model stores demonstrations in a temporary SQLite table.",
+      "The model re-indexes its embedding vocabulary on the fly."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "In-context learning operates entirely in forward inference via induction heads and dynamic key-value activations."
+  },
+  {
+    "id": "q_rag_cot_01",
+    "concept": "rag_chain_of_thought",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is Chain-of-Thought (CoT) prompting (Wei et al., 2022)?",
+    "options": [
+      "Encouraging the model to generate intermediate step-by-step reasoning steps before producing its final answer.",
+      "Linking multiple vector databases together in a chain.",
+      "Running an ensemble of 10 different LLMs in sequence.",
+      "Passing token embeddings through multiple activation functions."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "CoT allows the model to allocate test-time compute to intermediate reasoning steps on complex multi-step problems."
+  },
+  {
+    "id": "q_rag_cot_02",
+    "concept": "rag_chain_of_thought",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What simple phrase was discovered by Kojima et al. (2022) to trigger effective Zero-Shot Chain-of-Thought reasoning in LLMs?",
+    "options": [
+      "'Let's think step by step.'",
+      "'Execute immediately without thinking.'",
+      "'Output in binary only.'",
+      "'Translate to French and back.'"
+    ],
+    "answer_index": 0,
+    "explanation_hint": "'Let's think step by step' acts as an activation trigger that causes autoregressive generation of rationales before answers."
+  },
+  {
+    "id": "q_rag_cot_03",
+    "concept": "rag_chain_of_thought",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Self-Consistency' (Wang et al., 2022) in Chain-of-Thought prompting?",
+    "options": [
+      "Sampling multiple diverse CoT reasoning paths at temperature > 0 and selecting the final answer via majority vote across paths.",
+      "Checking if the prompt has consistent grammar rules.",
+      "Verifying that the model output is identical across two different GPU models.",
+      "Restricting generation to a single greedy path."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Self-consistency samples diverse reasoning trails and aggregates the most frequent consensus answer, significantly boosting accuracy."
+  },
+  {
+    "id": "q_rag_sys_01",
+    "concept": "rag_system_prompt",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the primary role of the 'System' message in modern chat APIs (System vs User vs Assistant)?",
+    "options": [
+      "To establish high-priority behavioral guidelines, persona, safety boundaries, and operating constraints that persist throughout the conversation.",
+      "To send GPU hardware metrics to the server.",
+      "To format CSS colors for the chat UI.",
+      "To compress the conversation history into zip files."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "The system message sets executive guardrails and operational context for subsequent dialogue turns."
+  },
+  {
+    "id": "q_rag_sys_02",
+    "concept": "rag_system_prompt",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why do conversational LLMs sometimes suffer from 'System Prompt Drift' over extended multi-turn conversations?",
+    "options": [
+      "As the context window fills with hundreds of conversational turns, earlier system tokens receive diminished attention relative to recent user messages.",
+      "The system prompt is deleted from RAM after 5 turns.",
+      "The model weights degrade over time.",
+      "The temperature automatically increases by 0.1 per turn."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Recency bias and attention dilution in long contexts can cause models to gradually ignore initial system directives."
+  },
+  {
+    "id": "q_rag_sys_03",
+    "concept": "rag_system_prompt",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "How can developers prevent user prompts from overriding system safety instructions in RAG applications?",
+    "options": [
+      "Use clear delimiter boundaries, validate inputs against jailbreak classifiers, and place strict refusal instructions in both system prompts and guardrail wrappers.",
+      "Disable user inputs completely.",
+      "Set temperature to 2.0.",
+      "Remove all system instructions."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Multi-layered defense (sandboxing, delimiters, system prompts, output post-guardrails) is essential for security."
+  },
+  {
+    "id": "q_rag_temp_01",
+    "concept": "rag_temperature",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "How does setting Temperature = 0 (or near 0) affect LLM text generation?",
+    "options": [
+      "It makes generation greedy and deterministic by always selecting the highest-probability next token.",
+      "It maximizes randomness and creative variation.",
+      "It disables the tokenizer.",
+      "It accelerates inference by skipping transformer layers."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Temperature scales logits z_i / T before Softmax; as T -> 0, the probability of the argmax token approaches 1.0."
+  },
+  {
+    "id": "q_rag_temp_02",
+    "concept": "rag_temperature",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is Top-P (Nucleus) sampling and how does it dynamically adapt its candidate pool?",
+    "options": [
+      "It samples only from the smallest set of top tokens whose cumulative probability exceeds threshold P, dynamically expanding on ambiguous words and narrowing on certain words.",
+      "It always selects exactly P tokens regardless of probabilities.",
+      "It filters out tokens whose character length is greater than P.",
+      "It samples only from the bottom P percent of unlikely tokens."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Nucleus sampling adapts candidate pool size dynamically based on the shape of the token probability distribution."
+  },
+  {
+    "id": "q_rag_temp_03",
+    "concept": "rag_temperature",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "For a factual enterprise RAG pipeline extracting structured JSON data from contracts, what sampling configuration is recommended?",
+    "options": [
+      "Temperature = 0.0 with Top-P = 1.0 (deterministic, minimal hallucination, strictly follows context schema).",
+      "Temperature = 1.5 with Top-K = 100 (maximum creative divergence).",
+      "Temperature = -1.0.",
+      "Temperature = 2.0 with randomized seeds."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Zero temperature ensures high fidelity, schema adherence, and consistent factual extraction."
+  },
+  {
+    "id": "q_rag_hal_01",
+    "concept": "rag_hallucination",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is a 'Hallucination' in Large Language Models?",
+    "options": [
+      "When the model generates fluent, authoritative-sounding text that is factually incorrect, ungrounded, or contradicted by reference sources.",
+      "When the GPU cooling fan makes excessive noise.",
+      "When the model returns an HTTP 500 status code.",
+      "When the model refuses to answer a prompt due to rate limits."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Hallucinations stem from statistical next-token prediction operating without an explicit real-time fact-checking verification layer."
+  },
+  {
+    "id": "q_rag_hal_02",
+    "concept": "rag_hallucination",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why does Retrieval-Augmented Generation (RAG) significantly reduce factual hallucination?",
+    "options": [
+      "It grounds the model's generation in retrieved, verifiable enterprise documents injected directly into the prompt context window.",
+      "It retrains all model weights on every user query.",
+      "It restricts the model to 1-word responses only.",
+      "It replaces the LLM with a regex string matcher."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "RAG shifts the model's task from unconstrained parametric memory recall to grounded comprehension and synthesis."
+  },
+  {
+    "id": "q_rag_hal_03",
+    "concept": "rag_hallucination",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Faithfulness' vs 'Answer Relevance' in modern RAG evaluation frameworks (such as RAGAS)?",
+    "options": [
+      "Faithfulness measures if claims in the answer are strictly supported by the retrieved context; Answer Relevance measures if the answer directly addresses the user query.",
+      "Faithfulness measures response latency; Answer Relevance measures memory usage.",
+      "Faithfulness checks token count; Answer Relevance checks grammar.",
+      "Both metrics measure the exact same cosine similarity."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Faithfulness checks factual grounding against retrieved sources; Answer Relevance checks task completeness against the user prompt."
   },
   {
     "id": "q_rag_emb_01",
@@ -225,6 +1500,36 @@
     "explanation_hint": "Cosine similarity measures the cosine of the angle between dense semantic representations."
   },
   {
+    "id": "q_rag_emb_02",
+    "concept": "rag_embeddings",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is the primary advantage of Dense Semantic Embeddings over traditional Sparse Keyword representations (such as BM25/TF-IDF)?",
+    "options": [
+      "Dense embeddings capture semantic synonyms, concepts, and paraphrase relationships even when exact lexical keywords do not overlap.",
+      "Dense embeddings use zero bytes of storage.",
+      "Dense embeddings guarantee 100% exact keyword matching.",
+      "Dense embeddings can be computed without neural networks."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Dense vectors map 'physician' and 'doctor' to neighboring points in embedding space despite zero lexical character overlap."
+  },
+  {
+    "id": "q_rag_emb_03",
+    "concept": "rag_embeddings",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is an Asymmetric Embedding model (e.g. Query vs Document prefixing in e5 or BGE)?",
+    "options": [
+      "A model trained with different instruction prefixes for short search queries vs long document chunks to map them into a shared retrieval space.",
+      "A model where vector dimensions have different bit depths.",
+      "A model that only embeds text in one language.",
+      "A model that inverts vector coordinates for negative queries."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Queries and candidate passages have fundamentally different lengths and linguistic structures; prefixing optimizes matching."
+  },
+  {
     "id": "q_rag_vdb_01",
     "concept": "rag_vector_db",
     "difficulty": 2,
@@ -238,5 +1543,260 @@
     ],
     "answer_index": 0,
     "explanation_hint": "ANN algorithms like HNSW provide logarithmic or sub-linear search time at a minor recall cost."
+  },
+  {
+    "id": "q_rag_vdb_02",
+    "concept": "rag_vector_db",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is Hierarchical Navigable Small World (HNSW) in vector databases?",
+    "options": [
+      "A graph-based ANN indexing structure with multi-layered skip-list-like graphs for fast logarithmic nearest neighbor traversal.",
+      "A relational SQL database engine designed for storing CSV files.",
+      "A compression algorithm that converts vectors to JPEG images.",
+      "A distributed blockchain ledger for AI models."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "HNSW builds multi-layer proximity graphs allowing rapid coarse routing at top layers and precise search at bottom layers."
+  },
+  {
+    "id": "q_rag_vdb_03",
+    "concept": "rag_vector_db",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Pre-Filtering' vs 'Post-Filtering' when executing vector search with metadata constraints (e.g. where user_id == 123)?",
+    "options": [
+      "Pre-filtering applies metadata filters before vector graph traversal; Post-filtering performs vector search first and filters results afterwards, risking low k recall.",
+      "Pre-filtering deletes old vectors; Post-filtering inserts new vectors.",
+      "Pre-filtering is performed on CPU; Post-filtering is performed on GPU.",
+      "Pre-filtering normalizes embeddings; Post-filtering quantizes weights."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Post-filtering can yield fewer than k candidates if the top vector neighbors fail the metadata predicate; single-stage pre-filtering avoids this."
+  },
+  {
+    "id": "q_rag_chk_01",
+    "concept": "rag_chunking",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "Why is document chunking a necessary preliminary step in RAG indexing pipelines?",
+    "options": [
+      "Long documents exceed embedding model context limits and dilute semantic specificity when averaged into a single vector.",
+      "Vector databases can only store text shorter than 10 characters.",
+      "Chunking encrypts documents for data privacy regulations.",
+      "Chunking removes all punctuation marks from text."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Targeted 200-500 token chunks ensure embedding vectors capture specific, fine-grained semantic propositions."
+  },
+  {
+    "id": "q_rag_chk_02",
+    "concept": "rag_chunking",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is the purpose of adding 'Chunk Overlap' (e.g. 500-token chunk size with 50-token overlap)?",
+    "options": [
+      "To prevent semantic context and sentences from being split mid-thought across artificial chunk boundaries.",
+      "To double the storage capacity of the database.",
+      "To remove duplicate information from the corpus.",
+      "To force the model to answer twice."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Overlap maintains semantic continuity across adjacent boundaries so boundary sentences remain fully comprehensible."
+  },
+  {
+    "id": "q_rag_chk_03",
+    "concept": "rag_chunking",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Recursive Character Text Splitting' (LangChain / LlamaIndex)?",
+    "options": [
+      "An algorithm that attempts to split by paragraphs (\\n\\n), then sentences (\\n), then words (' '), falling back to smaller delimiters only when chunks exceed target size.",
+      "A tokenizer that reverses the order of characters in every word.",
+      "A recursive function that splits documents into 1-character tokens.",
+      "A technique for converting markdown tables into SQL code."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Recursive splitting preserves natural document structural boundaries (paragraphs, sentences) wherever possible."
+  },
+  {
+    "id": "q_rag_ret_01",
+    "concept": "rag_retrieval",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What are the primary operational steps in the Dense Retrieval stage of RAG?",
+    "options": [
+      "Embed user query vector -> Query vector database for top-k nearest neighbor chunks using similarity metric -> Return candidate contexts.",
+      "Fine-tune the LLM weights -> Save checkpoint -> Restart server.",
+      "Translate query to SQL -> Drop table -> Create index.",
+      "Compress prompt with gzip -> Send HTTP POST request."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "The retriever embeds the incoming query and fetches the k most semantically similar text passages."
+  },
+  {
+    "id": "q_rag_ret_02",
+    "concept": "rag_retrieval",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is Hybrid Search in modern production retrieval systems?",
+    "options": [
+      "Combining Sparse Lexical keyword search (BM25) with Dense Semantic vector retrieval, merged via Reciprocal Rank Fusion (RRF).",
+      "Searching on both CPU and GPU simultaneously.",
+      "Searching text and audio files at the same time.",
+      "Querying both SQLite and MongoDB with identical queries."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Hybrid search combines the exact-match precision of BM25 (acronyms, IDs, part numbers) with the conceptual breadth of vector embeddings."
+  },
+  {
+    "id": "q_rag_ret_03",
+    "concept": "rag_retrieval",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is Hypothetical Document Embeddings (HyDE, Gao et al., 2022)?",
+    "options": [
+      "Using an LLM to generate a hypothetical answer to the user query first, then embedding that hypothetical answer to retrieve actual candidate passages.",
+      "Generating fake documents to test vector database capacity.",
+      "Encrypting document embeddings with a secret key.",
+      "Generating negative exemplars for classifier training."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "HyDE maps question-to-document retrieval into a document-to-document similarity space, significantly improving retrieval relevance."
+  },
+  {
+    "id": "q_rag_aug_01",
+    "concept": "rag_augmentation",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What does Context Injection / Augmentation mean in the RAG workflow?",
+    "options": [
+      "Dynamically assembling retrieved text passages into the prompt template alongside the user's question before sending to the LLM.",
+      "Injecting additional GPU memory into the cloud instance.",
+      "Adding synthetic noise to image pixels.",
+      "Increasing the learning rate during gradient descent."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Augmentation constructs the final enriched prompt containing system instructions, retrieved knowledge snippets, and user query."
+  },
+  {
+    "id": "q_rag_aug_02",
+    "concept": "rag_augmentation",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is the 'Lost in the Middle' phenomenon (Liu et al., 2023) in long-context prompt augmentation?",
+    "options": [
+      "LLMs access information placed at the very beginning or end of long input contexts significantly better than information in the middle.",
+      "The model stops generating text halfway through.",
+      "The middle layer of the transformer gets zero gradients.",
+      "The middle word of every sentence is dropped."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Placing the most relevant retrieved passages near the beginning or very end of the prompt improves model recall."
+  },
+  {
+    "id": "q_rag_aug_03",
+    "concept": "rag_augmentation",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "How should RAG prompts instruct the LLM when retrieved context does NOT contain enough information to answer the question?",
+    "options": [
+      "Explicitly instruct the model to state 'I cannot answer based on the provided context' rather than guessing from ungrounded parametric memory.",
+      "Instruct the model to invent a plausible URL.",
+      "Instruct the model to output a random poem.",
+      "Instruct the model to repeat the user question in reverse."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "A strict fallback directive prevents confident hallucination when retrieved passages lack relevant evidence."
+  },
+  {
+    "id": "q_rag_fp_01",
+    "concept": "rag_full_pipeline",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the end-to-end data flow in a full production RAG application?",
+    "options": [
+      "Ingest & Chunk -> Embed & Index -> User Query -> Dense Retrieval -> Prompt Augmentation -> LLM Generation with Citations.",
+      "User Query -> Backpropagation -> Update Weights -> Compile C++.",
+      "Download PDF -> Convert to MP3 -> Transcribe -> Delete Database.",
+      "User Query -> SQL Drop Table -> Vectorize -> Return Random String."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Full RAG orchestrates offline document ingestion and online retrieval-augmented inference."
+  },
+  {
+    "id": "q_rag_fp_02",
+    "concept": "rag_full_pipeline",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "What is the primary bottleneck for end-to-end latency in a production RAG pipeline?",
+    "options": [
+      "Autoregressive token generation by the LLM (Time-To-First-Token and streaming generation), which typically takes hundreds of milliseconds.",
+      "Vector database retrieval (which takes only 5-20ms with ANN).",
+      "Converting strings to UTF-8 in RAM.",
+      "Reading local environment variables."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Vector similarity search takes ~10ms; generative autoregressive decoding by the LLM represents 80-90% of total response latency."
+  },
+  {
+    "id": "q_rag_fp_03",
+    "concept": "rag_full_pipeline",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "What is 'Self-RAG' (Asai et al., 2023) or Agentic RAG compared to static Naive RAG?",
+    "options": [
+      "A framework where the model dynamically decides IF retrieval is needed, evaluates retrieved passage relevance, and critiques its own generated answer for factual grounding.",
+      "A RAG system that runs with no database.",
+      "A system where the user manually types vector embeddings.",
+      "A model that only answers questions about itself."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Self-RAG uses reflection tokens and critique mechanisms to dynamically decide when to retrieve, rewrite queries, or re-generate."
+  },
+  {
+    "id": "q_rag_rr_01",
+    "concept": "rag_reranking",
+    "difficulty": 1,
+    "type": "mcq",
+    "question": "What is the role of a Re-Ranking model (Cross-Encoder) in a two-stage retrieval pipeline?",
+    "options": [
+      "To re-score the top 20-50 candidate passages retrieved by the fast bi-encoder using full joint attention between Query and Passage.",
+      "To sort documents alphabetically by title.",
+      "To compress the database onto disk.",
+      "To delete duplicate rows from SQLite."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Two-stage retrieval: fast bi-encoder retrieves candidates (Stage 1), precise cross-encoder re-ranks the top results (Stage 2)."
+  },
+  {
+    "id": "q_rag_rr_02",
+    "concept": "rag_reranking",
+    "difficulty": 2,
+    "type": "mcq",
+    "question": "Why is a Cross-Encoder more accurate than a Bi-Encoder for document relevance scoring?",
+    "options": [
+      "Cross-encoders pass the Query and Passage together through full cross-attention layers, allowing all query tokens to directly interact with all passage tokens.",
+      "Cross-encoders do not use neural networks.",
+      "Cross-encoders are 100x faster than bi-encoders.",
+      "Cross-encoders ignore word order."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Bi-encoders compress passages into isolated vectors; cross-encoders compute rich token-to-token cross-attention interactions."
+  },
+  {
+    "id": "q_rag_rr_03",
+    "concept": "rag_reranking",
+    "difficulty": 3,
+    "type": "mcq",
+    "question": "Why can't we use a Cross-Encoder to search directly across a 10-million document database without a Bi-Encoder first stage?",
+    "options": [
+      "Cross-encoders cannot be pre-indexed into a vector database; scoring 10M passages for a single query would require 10M full forward passes, causing massive latency.",
+      "Cross-encoders can only process 10 documents before crashing.",
+      "Cross-encoders require GPU temperatures below 0 Kelvin.",
+      "Cross-encoders cannot output numerical scores."
+    ],
+    "answer_index": 0,
+    "explanation_hint": "Cross-encoders require O(N) full model evaluations per query, making Stage 1 bi-encoder candidate filtering mandatory."
   }
 ]
