@@ -335,9 +335,10 @@ export default function TutorView({
 
                 if (!isSubmitted) {
                   if (isSelected) {
-                    optionStyle.borderLeft = '4px solid var(--accent)';
-                    optionStyle.borderColor = 'var(--accent-border)';
-                    optionStyle.background = 'var(--accent-dim)';
+                    optionStyle.borderLeft = '4px solid var(--select-blue)';
+                    optionStyle.borderColor = 'var(--select-blue-border)';
+                    optionStyle.background = 'var(--select-blue-dim)';
+                    optionStyle.color = 'var(--text-primary)';
                   }
                 } else {
                   if (isCorrect) {
