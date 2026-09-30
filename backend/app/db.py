@@ -1,40 +1,100 @@
-"""SQLite persistence layer for sessions, attempts, mastery states, and audit traces."""
+"""Database persistence layer supporting both SQLite (local/testing) and PostgreSQL (Supabase/Neon/Cloud)."""
 
 import base64
 import hashlib
 import json
+import os
 import secrets
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
 
 DB_PATH = Path(__file__).resolve().parent.parent.parent / "vidya.db"
 
 
-def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
+def is_postgres(db_path: Optional[Any] = None) -> bool:
+    """Check if PostgreSQL (Supabase/Neon) is configured in environment."""
+    if db_path is not None and isinstance(db_path, Path):
+        return False
+    db_url = os.getenv("DATABASE_URL", "").strip()
+    return db_url.startswith("postgresql://") or db_url.startswith("postgres://")
+
+
+def get_pg_connection():
+    """Create a psycopg2 connection to PostgreSQL / Supabase with dict cursor."""
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    db_url = os.getenv("DATABASE_URL", "").strip()
+    conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+    return conn
+
+
+def get_sqlite_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
     """Create and configure a SQLite connection with WAL mode enabled."""
     target_path = db_path or DB_PATH
     conn = sqlite3.connect(str(target_path), timeout=10.0)
     conn.row_factory = sqlite3.Row
-    # Enable WAL mode and foreign keys for high concurrency and data integrity
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
     return conn
 
 
-def _ensure_user_and_token_tables(conn: sqlite3.Connection) -> None:
-    """Add auth-related schema if needed for backwards compatibility."""
-    session_columns = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
-    if "user_id" not in session_columns:
-        conn.execute("ALTER TABLE sessions ADD COLUMN user_id TEXT")
+class QueryExecutor:
+    """Unified query executor adapting between SQLite (?) and PostgreSQL (%s)."""
 
-    user_columns = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
-    if "name" not in user_columns:
-        conn.execute("ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+    def __init__(self, db_path: Optional[Path] = None):
+        self.use_pg = is_postgres(db_path)
+        self.db_path = db_path
+        self.conn = get_pg_connection() if self.use_pg else get_sqlite_connection(db_path)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.conn.rollback()
+        else:
+            self.conn.commit()
+        self.conn.close()
+
+    def _format_sql(self, sql: str) -> str:
+        if self.use_pg:
+            # Convert SQLite parameter ? to Postgres %s
+            return sql.replace("?", "%s")
+        return sql
+
+    def execute(self, sql: str, params: Tuple[Any, ...] = ()):
+        cursor = self.conn.cursor()
+        formatted_sql = self._format_sql(sql)
+        cursor.execute(formatted_sql, params)
+        return cursor
+
+    def fetchone(self, sql: str, params: Tuple[Any, ...] = ()) -> Optional[Dict[str, Any]]:
+        cursor = self.conn.cursor()
+        formatted_sql = self._format_sql(sql)
+        cursor.execute(formatted_sql, params)
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+    def fetchall(self, sql: str, params: Tuple[Any, ...] = ()) -> List[Dict[str, Any]]:
+        cursor = self.conn.cursor()
+        formatted_sql = self._format_sql(sql)
+        cursor.execute(formatted_sql, params)
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_connection(db_path: Optional[Path] = None):
+    """Backwards compatibility for direct connection requests."""
+    if is_postgres(db_path):
+        return get_pg_connection()
+    return get_sqlite_connection(db_path)
 
 
 def hash_password(password: str) -> str:
@@ -58,7 +118,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return False
 
 
-def _seed_demo_user(conn: sqlite3.Connection) -> None:
+def _seed_demo_user_sqlite(conn: sqlite3.Connection) -> None:
     """Seed default demo learner account for instant testing if not already present."""
     demo_email = "demo@vidya.ai"
     existing = conn.execute("SELECT id, password_hash FROM users WHERE email = ?", (demo_email,)).fetchone()
@@ -70,7 +130,6 @@ def _seed_demo_user(conn: sqlite3.Connection) -> None:
             (demo_id, demo_email, hash_password("demo1234"), created_at, "Demo Learner"),
         )
     else:
-        # Ensure password hash is valid for demo1234
         if not verify_password("demo1234", existing["password_hash"]):
             conn.execute(
                 "UPDATE users SET password_hash = ? WHERE email = ?",
@@ -79,92 +138,174 @@ def _seed_demo_user(conn: sqlite3.Connection) -> None:
 
 
 def init_db(db_path: Optional[Path] = None) -> None:
-    """Initialize database tables per MVP.md Section 3 schema."""
-    conn = get_connection(db_path)
-    with conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL DEFAULT '',
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS auth_tokens (
-                token TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS otp_verifications (
-                email TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                otp_code TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                user_id TEXT,
-                topic TEXT,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-            );
-        """)
-        _ensure_user_and_token_tables(conn)
-        _seed_demo_user(conn)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS attempts (
-                id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL,
-                concept_id TEXT NOT NULL,
-                question_id TEXT NOT NULL,
-                correct INTEGER NOT NULL,
-                latency_ms INTEGER NOT NULL,
-                ts TEXT NOT NULL,
-                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-            );
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS mastery (
-                session_id TEXT NOT NULL,
-                concept_id TEXT NOT NULL,
-                p_known REAL NOT NULL,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (session_id, concept_id),
-                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-            );
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS traces (
-                id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL,
-                step INTEGER NOT NULL,
-                payload_json TEXT NOT NULL,
-                ts TEXT NOT NULL,
-                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-            );
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS questions (
-                id TEXT PRIMARY KEY,
-                concept_id TEXT NOT NULL,
-                difficulty INTEGER NOT NULL,
-                question TEXT NOT NULL,
-                options_json TEXT NOT NULL,
-                answer_index INTEGER NOT NULL,
-                explanation_hint TEXT,
-                created_at TEXT NOT NULL
-            );
-        """)
-    conn.close()
+    """Initialize database tables on SQLite or PostgreSQL (Supabase)."""
+    use_pg = is_postgres(db_path)
+
+    if use_pg:
+        conn = get_pg_connection()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL DEFAULT '',
+                        email TEXT UNIQUE NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS auth_tokens (
+                        token TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        created_at TEXT NOT NULL
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS otp_verifications (
+                        email TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        otp_code TEXT NOT NULL,
+                        expires_at TEXT NOT NULL,
+                        created_at TEXT NOT NULL
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+                        topic TEXT,
+                        created_at TEXT NOT NULL
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS attempts (
+                        id TEXT PRIMARY KEY,
+                        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                        concept_id TEXT NOT NULL,
+                        question_id TEXT NOT NULL,
+                        correct INTEGER NOT NULL,
+                        latency_ms INTEGER NOT NULL,
+                        ts TEXT NOT NULL
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS mastery (
+                        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                        concept_id TEXT NOT NULL,
+                        p_known DOUBLE PRECISION NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        PRIMARY KEY (session_id, concept_id)
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS traces (
+                        id TEXT PRIMARY KEY,
+                        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                        step INTEGER NOT NULL,
+                        payload_json TEXT NOT NULL,
+                        ts TEXT NOT NULL
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS questions (
+                        id TEXT PRIMARY KEY,
+                        concept_id TEXT NOT NULL,
+                        difficulty INTEGER NOT NULL,
+                        question TEXT NOT NULL,
+                        options_json TEXT NOT NULL,
+                        answer_index INTEGER NOT NULL,
+                        explanation_hint TEXT,
+                        created_at TEXT NOT NULL
+                    );
+                """)
+        conn.close()
+    else:
+        conn = get_sqlite_connection(db_path)
+        with conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL DEFAULT '',
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS auth_tokens (
+                    token TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS otp_verifications (
+                    email TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    otp_code TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT,
+                    topic TEXT,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS attempts (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    concept_id TEXT NOT NULL,
+                    question_id TEXT NOT NULL,
+                    correct INTEGER NOT NULL,
+                    latency_ms INTEGER NOT NULL,
+                    ts TEXT NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS mastery (
+                    session_id TEXT NOT NULL,
+                    concept_id TEXT NOT NULL,
+                    p_known REAL NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (session_id, concept_id),
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS traces (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    step INTEGER NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    ts TEXT NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS questions (
+                    id TEXT PRIMARY KEY,
+                    concept_id TEXT NOT NULL,
+                    difficulty INTEGER NOT NULL,
+                    question TEXT NOT NULL,
+                    options_json TEXT NOT NULL,
+                    answer_index INTEGER NOT NULL,
+                    explanation_hint TEXT,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            _seed_demo_user_sqlite(conn)
+        conn.close()
 
 
 def create_user(email: str, password: str, name: str = "", db_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -180,20 +321,17 @@ def create_user(email: str, password: str, name: str = "", db_path: Optional[Pat
     if len(password) < 6:
         raise ValueError("Password must be at least 6 characters long.")
 
-    conn = get_connection(db_path)
-    existing = conn.execute("SELECT id FROM users WHERE email = ?", (normalized_email,)).fetchone()
-    if existing:
-        conn.close()
-        raise ValueError("A user with this email already exists.")
+    with QueryExecutor(db_path) as qe:
+        existing = qe.fetchone("SELECT id FROM users WHERE email = ?", (normalized_email,))
+        if existing:
+            raise ValueError("A user with this email already exists.")
 
-    user_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
-    with conn:
-        conn.execute(
+        user_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc).isoformat()
+        qe.execute(
             "INSERT INTO users (id, email, password_hash, created_at, name) VALUES (?, ?, ?, ?, ?)",
             (user_id, normalized_email, hash_password(password), created_at, cleaned_name),
         )
-    conn.close()
     return {"id": user_id, "email": normalized_email, "name": cleaned_name, "created_at": created_at}
 
 
@@ -208,36 +346,31 @@ def create_otp_request(email: str, name: str, password: str, db_path: Optional[P
     if len(password) < 6:
         raise ValueError("Password must be at least 6 characters long.")
 
-    conn = get_connection(db_path)
-    existing = conn.execute("SELECT id FROM users WHERE email = ?", (normalized_email,)).fetchone()
-    if existing:
-        conn.close()
-        raise ValueError("A user with this email already exists.")
+    with QueryExecutor(db_path) as qe:
+        existing = qe.fetchone("SELECT id FROM users WHERE email = ?", (normalized_email,))
+        if existing:
+            raise ValueError("A user with this email already exists.")
 
-    otp_code = f"{secrets.randbelow(900000) + 100000}"  # guaranteed 6-digit OTP string
-    pw_hash = hash_password(password)
-    now = datetime.now(timezone.utc)
-    expires_at = (now + datetime.timedelta(seconds=600) if hasattr(datetime, 'timedelta') else now).isoformat()
-    # Using datetime.fromtimestamp or timedelta safely
-    from datetime import timedelta
-    expires_at = (now + timedelta(minutes=10)).isoformat()
-    created_at = now.isoformat()
+        otp_code = f"{secrets.randbelow(900000) + 100000}"
+        pw_hash = hash_password(password)
+        now = datetime.now(timezone.utc)
+        expires_at = (now + timedelta(minutes=10)).isoformat()
+        created_at = now.isoformat()
 
-    with conn:
-        conn.execute(
+        qe.execute(
             """
             INSERT INTO otp_verifications (email, name, password_hash, otp_code, expires_at, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(email) DO UPDATE SET
-                name = excluded.name,
-                password_hash = excluded.password_hash,
-                otp_code = excluded.otp_code,
-                expires_at = excluded.expires_at,
-                created_at = excluded.created_at
+                name = EXCLUDED.name,
+                password_hash = EXCLUDED.password_hash,
+                otp_code = EXCLUDED.otp_code,
+                expires_at = EXCLUDED.expires_at,
+                created_at = EXCLUDED.created_at
             """,
             (normalized_email, cleaned_name, pw_hash, otp_code, expires_at, created_at),
         )
-    conn.close()
+
     return {
         "email": normalized_email,
         "name": cleaned_name,
@@ -253,61 +386,52 @@ def verify_and_create_user(email: str, otp_code: str, db_path: Optional[Path] = 
     if not normalized_email or not clean_otp:
         raise ValueError("Email and OTP code are required.")
 
-    conn = get_connection(db_path)
-    row = conn.execute(
-        "SELECT email, name, password_hash, otp_code, expires_at FROM otp_verifications WHERE email = ?",
-        (normalized_email,),
-    ).fetchone()
+    with QueryExecutor(db_path) as qe:
+        row = qe.fetchone(
+            "SELECT email, name, password_hash, otp_code, expires_at FROM otp_verifications WHERE email = ?",
+            (normalized_email,),
+        )
 
-    if row is None:
-        conn.close()
-        raise ValueError("No pending signup found for this email. Please request a new OTP.")
+        if row is None:
+            raise ValueError("No pending signup found for this email. Please request a new OTP.")
 
-    if row["otp_code"] != clean_otp:
-        conn.close()
-        raise ValueError("Invalid OTP code. Please check your email and try again.")
+        if row["otp_code"] != clean_otp:
+            raise ValueError("Invalid OTP code. Please check your email and try again.")
 
-    expires_at_dt = datetime.fromisoformat(row["expires_at"])
-    now_dt = datetime.now(timezone.utc)
-    if expires_at_dt < now_dt:
-        conn.close()
-        raise ValueError("OTP verification code has expired. Please click Resend OTP.")
+        expires_at_dt = datetime.fromisoformat(row["expires_at"])
+        now_dt = datetime.now(timezone.utc)
+        if expires_at_dt < now_dt:
+            raise ValueError("OTP verification code has expired. Please click Resend OTP.")
 
-    # Check if user was already created in the meantime
-    user_id = str(uuid.uuid4())
-    created_at = now_dt.isoformat()
+        user_id = str(uuid.uuid4())
+        created_at = now_dt.isoformat()
 
-    with conn:
-        conn.execute(
+        qe.execute(
             "INSERT INTO users (id, email, password_hash, created_at, name) VALUES (?, ?, ?, ?, ?)",
             (user_id, normalized_email, row["password_hash"], created_at, row["name"]),
         )
-        conn.execute("DELETE FROM otp_verifications WHERE email = ?", (normalized_email,))
+        qe.execute("DELETE FROM otp_verifications WHERE email = ?", (normalized_email,))
 
-    conn.close()
     return {"id": user_id, "email": normalized_email, "name": row["name"], "created_at": created_at}
 
 
 def resend_otp_code(email: str, db_path: Optional[Path] = None) -> Dict[str, Any]:
     """Re-generate a fresh OTP for a pending registration."""
     normalized_email = email.strip().lower()
-    conn = get_connection(db_path)
-    row = conn.execute(
-        "SELECT email, name, password_hash FROM otp_verifications WHERE email = ?",
-        (normalized_email,),
-    ).fetchone()
+    with QueryExecutor(db_path) as qe:
+        row = qe.fetchone(
+            "SELECT email, name, password_hash FROM otp_verifications WHERE email = ?",
+            (normalized_email,),
+        )
 
-    if row is None:
-        conn.close()
-        raise ValueError("No pending signup found for this email. Please enter your signup details again.")
+        if row is None:
+            raise ValueError("No pending signup found for this email. Please enter your signup details again.")
 
-    otp_code = f"{secrets.randbelow(900000) + 100000}"
-    from datetime import timedelta
-    now = datetime.now(timezone.utc)
-    expires_at = (now + timedelta(minutes=10)).isoformat()
+        otp_code = f"{secrets.randbelow(900000) + 100000}"
+        now = datetime.now(timezone.utc)
+        expires_at = (now + timedelta(minutes=10)).isoformat()
 
-    with conn:
-        conn.execute(
+        qe.execute(
             """
             UPDATE otp_verifications
             SET otp_code = ?, expires_at = ?, created_at = ?
@@ -315,7 +439,7 @@ def resend_otp_code(email: str, db_path: Optional[Path] = None) -> Dict[str, Any
             """,
             (otp_code, expires_at, now.isoformat(), normalized_email),
         )
-    conn.close()
+
     return {
         "email": normalized_email,
         "name": row["name"],
@@ -327,12 +451,11 @@ def resend_otp_code(email: str, db_path: Optional[Path] = None) -> Dict[str, Any
 def authenticate_user(email: str, password: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     """Authenticate a user by email and password."""
     normalized_email = email.strip().lower()
-    conn = get_connection(db_path)
-    row = conn.execute(
-        "SELECT id, email, password_hash, created_at, name FROM users WHERE email = ?",
-        (normalized_email,),
-    ).fetchone()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        row = qe.fetchone(
+            "SELECT id, email, password_hash, created_at, name FROM users WHERE email = ?",
+            (normalized_email,),
+        )
     if row is None:
         return None
     if not verify_password(password, row["password_hash"]):
@@ -349,13 +472,11 @@ def create_auth_token(user_id: str, db_path: Optional[Path] = None) -> str:
     """Create a bearer token for an authenticated user."""
     token = secrets.token_urlsafe(32)
     created_at = datetime.now(timezone.utc).isoformat()
-    conn = get_connection(db_path)
-    with conn:
-        conn.execute(
+    with QueryExecutor(db_path) as qe:
+        qe.execute(
             "INSERT INTO auth_tokens (token, user_id, created_at) VALUES (?, ?, ?)",
             (token, user_id, created_at),
         )
-    conn.close()
     return token
 
 
@@ -363,17 +484,16 @@ def get_user_by_token(token: str, db_path: Optional[Path] = None) -> Optional[Di
     """Look up the authenticated user for a bearer token."""
     if not token:
         return None
-    conn = get_connection(db_path)
-    row = conn.execute(
-        """
-        SELECT u.id, u.email, u.name, u.created_at
-        FROM auth_tokens t
-        JOIN users u ON u.id = t.user_id
-        WHERE t.token = ?
-        """,
-        (token,),
-    ).fetchone()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        row = qe.fetchone(
+            """
+            SELECT u.id, u.email, u.name, u.created_at
+            FROM auth_tokens t
+            JOIN users u ON u.id = t.user_id
+            WHERE t.token = ?
+            """,
+            (token,),
+        )
     if row is None:
         return None
     return {"id": row["id"], "email": row["email"], "name": row["name"], "created_at": row["created_at"]}
@@ -382,23 +502,18 @@ def get_user_by_token(token: str, db_path: Optional[Path] = None) -> Optional[Di
 def create_session(session_id: str, topic: Optional[str] = None, user_id: Optional[str] = None, db_path: Optional[Path] = None) -> str:
     """Record a new learning session."""
     now_iso = datetime.now(timezone.utc).isoformat()
-    conn = get_connection(db_path)
-    with conn:
-        conn.execute(
+    with QueryExecutor(db_path) as qe:
+        qe.execute(
             "INSERT INTO sessions (id, user_id, topic, created_at) VALUES (?, ?, ?, ?)",
             (session_id, user_id, topic, now_iso),
         )
-    conn.close()
     return now_iso
 
 
 def get_session(session_id: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     """Retrieve session record by ID."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, user_id, topic, created_at FROM sessions WHERE id = ?", (session_id,))
-    row = cursor.fetchone()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        row = qe.fetchone("SELECT id, user_id, topic, created_at FROM sessions WHERE id = ?", (session_id,))
     if row:
         return {
             "id": row["id"],
@@ -411,14 +526,11 @@ def get_session(session_id: str, db_path: Optional[Path] = None) -> Optional[Dic
 
 def get_mastery(session_id: str, concept_id: str, db_path: Optional[Path] = None) -> Optional[float]:
     """Get current p_known for a session's concept."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT p_known FROM mastery WHERE session_id = ? AND concept_id = ?",
-        (session_id, concept_id),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        row = qe.fetchone(
+            "SELECT p_known FROM mastery WHERE session_id = ? AND concept_id = ?",
+            (session_id, concept_id),
+        )
     if row:
         return float(row["p_known"])
     return None
@@ -426,30 +538,28 @@ def get_mastery(session_id: str, concept_id: str, db_path: Optional[Path] = None
 
 def get_all_mastery(session_id: str, db_path: Optional[Path] = None) -> Dict[str, float]:
     """Get all concept mastery probabilities for a session."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT concept_id, p_known FROM mastery WHERE session_id = ?",
-        (session_id,),
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        rows = qe.fetchall(
+            "SELECT concept_id, p_known FROM mastery WHERE session_id = ?",
+            (session_id,),
+        )
     return {row["concept_id"]: float(row["p_known"]) for row in rows}
 
 
 def set_mastery(session_id: str, concept_id: str, p_known: float, db_path: Optional[Path] = None) -> None:
     """Insert or update concept mastery probability."""
     now_iso = datetime.now(timezone.utc).isoformat()
-    conn = get_connection(db_path)
-    with conn:
-        conn.execute("""
+    with QueryExecutor(db_path) as qe:
+        qe.execute(
+            """
             INSERT INTO mastery (session_id, concept_id, p_known, updated_at)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(session_id, concept_id) DO UPDATE SET
-                p_known = excluded.p_known,
-                updated_at = excluded.updated_at
-        """, (session_id, concept_id, p_known, now_iso))
-    conn.close()
+                p_known = EXCLUDED.p_known,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (session_id, concept_id, p_known, now_iso),
+        )
 
 
 def record_attempt(
@@ -463,16 +573,14 @@ def record_attempt(
 ) -> None:
     """Log an answer attempt."""
     now_iso = datetime.now(timezone.utc).isoformat()
-    conn = get_connection(db_path)
-    with conn:
-        conn.execute(
+    with QueryExecutor(db_path) as qe:
+        qe.execute(
             """
             INSERT INTO attempts (id, session_id, concept_id, question_id, correct, latency_ms, ts)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (attempt_id, session_id, concept_id, question_id, 1 if correct else 0, latency_ms, now_iso),
         )
-    conn.close()
 
 
 def get_recent_attempts(
@@ -482,30 +590,27 @@ def get_recent_attempts(
     db_path: Optional[Path] = None,
 ) -> List[Dict[str, Any]]:
     """Retrieve recent answer attempts for a session/concept."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    if concept_id:
-        cursor.execute(
-            """
-            SELECT id, session_id, concept_id, question_id, correct, latency_ms, ts
-            FROM attempts
-            WHERE session_id = ? AND concept_id = ?
-            ORDER BY ts DESC LIMIT ?
-            """,
-            (session_id, concept_id, limit),
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT id, session_id, concept_id, question_id, correct, latency_ms, ts
-            FROM attempts
-            WHERE session_id = ?
-            ORDER BY ts DESC LIMIT ?
-            """,
-            (session_id, limit),
-        )
-    rows = cursor.fetchall()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        if concept_id:
+            rows = qe.fetchall(
+                """
+                SELECT id, session_id, concept_id, question_id, correct, latency_ms, ts
+                FROM attempts
+                WHERE session_id = ? AND concept_id = ?
+                ORDER BY ts DESC LIMIT ?
+                """,
+                (session_id, concept_id, limit),
+            )
+        else:
+            rows = qe.fetchall(
+                """
+                SELECT id, session_id, concept_id, question_id, correct, latency_ms, ts
+                FROM attempts
+                WHERE session_id = ?
+                ORDER BY ts DESC LIMIT ?
+                """,
+                (session_id, limit),
+            )
     return [
         {
             "id": r["id"],
@@ -529,33 +634,28 @@ def append_trace(
 ) -> None:
     """Append structured trace step."""
     now_iso = datetime.now(timezone.utc).isoformat()
-    conn = get_connection(db_path)
-    with conn:
-        conn.execute(
+    with QueryExecutor(db_path) as qe:
+        qe.execute(
             """
             INSERT INTO traces (id, session_id, step, payload_json, ts)
             VALUES (?, ?, ?, ?, ?)
             """,
             (trace_id, session_id, step, json.dumps(payload), now_iso),
         )
-    conn.close()
 
 
 def get_traces(session_id: str, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Retrieve all traces for a session in order of step."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT step, payload_json, ts
-        FROM traces
-        WHERE session_id = ?
-        ORDER BY step ASC
-        """,
-        (session_id,),
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        rows = qe.fetchall(
+            """
+            SELECT step, payload_json, ts
+            FROM traces
+            WHERE session_id = ?
+            ORDER BY step ASC
+            """,
+            (session_id,),
+        )
     return [
         {
             "step": r["step"],
@@ -568,11 +668,8 @@ def get_traces(session_id: str, db_path: Optional[Path] = None) -> List[Dict[str
 
 def get_next_trace_step(session_id: str, db_path: Optional[Path] = None) -> int:
     """Get the next sequential step number for trace logging."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT MAX(step) as max_step FROM traces WHERE session_id = ?", (session_id,))
-    row = cursor.fetchone()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        row = qe.fetchone("SELECT MAX(step) as max_step FROM traces WHERE session_id = ?", (session_id,))
     if row and row["max_step"] is not None:
         return int(row["max_step"]) + 1
     return 1
@@ -583,17 +680,16 @@ def save_question(q_dict: Dict[str, Any], db_path: Optional[Path] = None) -> Non
     if not q_dict or "id" not in q_dict or "question" not in q_dict:
         return
     now_iso = datetime.now(timezone.utc).isoformat()
-    conn = get_connection(db_path)
-    with conn:
-        conn.execute(
+    with QueryExecutor(db_path) as qe:
+        qe.execute(
             """
             INSERT INTO questions (id, concept_id, difficulty, question, options_json, answer_index, explanation_hint, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
-                question = excluded.question,
-                options_json = excluded.options_json,
-                answer_index = excluded.answer_index,
-                explanation_hint = excluded.explanation_hint
+                question = EXCLUDED.question,
+                options_json = EXCLUDED.options_json,
+                answer_index = EXCLUDED.answer_index,
+                explanation_hint = EXCLUDED.explanation_hint
             """,
             (
                 q_dict["id"],
@@ -606,23 +702,19 @@ def save_question(q_dict: Dict[str, Any], db_path: Optional[Path] = None) -> Non
                 now_iso,
             ),
         )
-    conn.close()
 
 
 def get_question(question_id: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     """Retrieve question record by ID."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT id, concept_id, difficulty, question, options_json, answer_index, explanation_hint
-        FROM questions
-        WHERE id = ?
-        """,
-        (question_id,),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        row = qe.fetchone(
+            """
+            SELECT id, concept_id, difficulty, question, options_json, answer_index, explanation_hint
+            FROM questions
+            WHERE id = ?
+            """,
+            (question_id,),
+        )
     if row:
         return {
             "id": row["id"],
@@ -638,20 +730,17 @@ def get_question(question_id: str, db_path: Optional[Path] = None) -> Optional[D
 
 def get_session_answered_questions(session_id: str, db_path: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Retrieve all distinct questions that have been answered in this session."""
-    conn = get_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT q.id, q.concept_id, q.difficulty, q.question, q.options_json, q.answer_index, q.explanation_hint, a.correct, a.ts
-        FROM attempts a
-        JOIN questions q ON a.question_id = q.id
-        WHERE a.session_id = ?
-        ORDER BY a.ts ASC
-        """,
-        (session_id,),
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    with QueryExecutor(db_path) as qe:
+        rows = qe.fetchall(
+            """
+            SELECT q.id, q.concept_id, q.difficulty, q.question, q.options_json, q.answer_index, q.explanation_hint, a.correct, a.ts
+            FROM attempts a
+            JOIN questions q ON a.question_id = q.id
+            WHERE a.session_id = ?
+            ORDER BY a.ts ASC
+            """,
+            (session_id,),
+        )
     return [
         {
             "id": r["id"],
@@ -666,4 +755,3 @@ def get_session_answered_questions(session_id: str, db_path: Optional[Path] = No
         }
         for r in rows
     ]
-
