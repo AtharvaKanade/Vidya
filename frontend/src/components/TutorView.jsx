@@ -2,10 +2,20 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Sparkle, CheckCircle, XCircle, ArrowRight, Brain, 
-  Lightbulb, Info
+  Info, BookOpen, ArrowsClockwise, Lightning, Lightbulb,
+  CaretDown, CaretUp
 } from '@phosphor-icons/react';
+import { getExplanation } from '../api';
+
+const STYLE_OPTIONS = [
+  { id: 'default', label: 'Intuition', icon: BookOpen },
+  { id: 'analogy', label: 'Analogy', icon: Lightbulb },
+  { id: 'worked_example', label: 'Worked Example', icon: Lightning },
+  { id: 'step_by_step', label: 'Step-by-Step', icon: Sparkle },
+];
 
 export default function TutorView({
+  session,
   currentConcept,
   onAnswerSubmitted,
   onNextQuestion,
@@ -18,10 +28,43 @@ export default function TutorView({
   const [startTime, setStartTime] = useState(Date.now());
   const [recentAnswers, setRecentAnswers] = useState([]);
 
+  // LLM Explanation State (Only opens when student explicitly clicks)
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [activeStyle, setActiveStyle] = useState('default');
+  const [explanation, setExplanation] = useState(null);
+  const [loadingExplanation, setLoadingExplanation] = useState(false);
+
+  // Fetch explanation when student toggles it or switches style
+  useEffect(() => {
+    let isMounted = true;
+    if (isSubmitted && showExplanation && session?.session_id && currentConcept?.concept_id) {
+      setLoadingExplanation(true);
+      getExplanation(session.session_id, currentConcept.concept_id, activeStyle)
+        .then((res) => {
+          if (isMounted) {
+            setExplanation(res);
+          }
+        })
+        .catch((err) => {
+          console.error('Explanation fetch error:', err);
+        })
+        .finally(() => {
+          if (isMounted) setLoadingExplanation(false);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [isSubmitted, showExplanation, session?.session_id, currentConcept?.concept_id, activeStyle]);
+
+  // Reset answer states on concept change
   useEffect(() => {
     setSelectedOption(null);
     setIsSubmitted(false);
     setLastResult(null);
+    setShowExplanation(false);
+    setExplanation(null);
+    setActiveStyle('default');
     setStartTime(Date.now());
   }, [currentConcept?.concept_id, currentConcept?.question?.id]);
 
@@ -81,8 +124,13 @@ export default function TutorView({
       // Record in local recent attempt history (max 3)
       setRecentAnswers(prev => [isCorrect, ...prev].slice(0, 3));
 
+      // If re-explain style was provided by backend, set style ready for when user clicks (NEVER auto-open)
+      if (result?.explanation_style) {
+        setActiveStyle(result.explanation_style);
+      }
+
       // Celebrate mastery milestone
-      if (result.p_known_after >= 0.85 && result.p_known_before < 0.85) {
+      if (result && result.p_known_after >= 0.85 && result.p_known_before < 0.85) {
         confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
       }
     } catch (err) {
@@ -128,7 +176,7 @@ export default function TutorView({
               border: '1px solid var(--border-mid)',
             }}
           >
-            {/* Top row: Difficulty only */}
+            {/* Top row: Difficulty & Concept type */}
             <div className="flex items-center justify-between gap-2 mb-4">
               <span className="label-caps" style={{ color: 'var(--text-muted)' }}>CONCEPT</span>
               <span className="badge badge-neutral text-xs">{difficultyLabel}</span>
@@ -143,7 +191,7 @@ export default function TutorView({
             <div className="flex items-center justify-center my-5">
               <div 
                 className="relative w-32 h-32 flex items-center justify-center cursor-help"
-                title="BKT Mastery: Bayesian estimate of concept mastery. 85% unlocks new topics."
+                title="BKT Mastery: Bayesian estimate of concept mastery. >= 85% is Mastered."
               >
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                   {/* Background track */}
@@ -178,7 +226,7 @@ export default function TutorView({
                     className="text-[9px] uppercase font-semibold tracking-wider flex items-center gap-1"
                     style={{ color: 'var(--text-muted)' }}
                   >
-                    Mastery <Info size={10} style={{ color: 'var(--text-muted)' }} />
+                    BKT Mastery <Info size={10} style={{ color: 'var(--text-muted)' }} />
                   </span>
                 </div>
               </div>
@@ -219,31 +267,9 @@ export default function TutorView({
           </div>
         </aside>
 
-        {/* ── Right Column: Interactive Question & Response Area ── */}
+        {/* ── Right Column: Interactive Practice Question & AI Explanation ── */}
         <div className="lg:col-span-8 space-y-4">
           
-          {/* Re-explain Notification Banner */}
-          {lastResult?.re_explain && (
-            <div 
-              className="p-4 rounded-lg flex items-start gap-3 animate-fade-in"
-              style={{
-                background: 'var(--green-dim)',
-                border: '1px solid var(--green-border)',
-                color: 'var(--text-primary)'
-              }}
-            >
-              <Lightbulb size={20} weight="duotone" style={{ color: 'var(--green)', flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <strong className="block font-semibold text-sm mb-0.5" style={{ color: 'var(--text-primary)' }}>
-                  Let's try a fresh perspective
-                </strong>
-                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                  Vidya has switched to an intuitive real-world analogy to help bridge the concept gap.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Main Question Card */}
           <div 
             className="p-6 sm:p-8 rounded-lg"
@@ -252,7 +278,7 @@ export default function TutorView({
               border: '1px solid var(--border-mid)',
             }}
           >
-            {/* Header: Clean adaptive prompt label */}
+            {/* Header */}
             <div className="flex items-center gap-2 mb-5 pb-3 border-b" style={{ borderColor: 'var(--border-dim)' }}>
               <Sparkle size={14} weight="fill" style={{ color: 'var(--accent)' }} />
               <span className="label-caps font-semibold" style={{ color: 'var(--accent)' }}>
@@ -268,7 +294,7 @@ export default function TutorView({
               {questionItem.question}
             </h3>
 
-            {/* Options List — Left Border Styling */}
+            {/* Options List */}
             <div className="space-y-3 mb-6">
               {questionItem.options.map((option, idx) => {
                 const isSelected = selectedOption === idx;
@@ -292,18 +318,22 @@ export default function TutorView({
                   }
                 } else {
                   if (isCorrect) {
+                    // Mark correct answer GREEN
                     optionStyle.borderLeft = '4px solid var(--green)';
                     optionStyle.borderColor = 'var(--green-border)';
                     optionStyle.background = 'var(--green-dim)';
+                    optionStyle.color = 'var(--text-primary)';
                   } else if (isWrong) {
+                    // Mark incorrect selected answer RED
                     optionStyle.borderLeft = '4px solid var(--red)';
                     optionStyle.borderColor = 'var(--red-border)';
                     optionStyle.background = 'var(--red-dim)';
+                    optionStyle.color = 'var(--text-primary)';
                   } else {
                     optionStyle.borderColor = 'var(--border-dim)';
                     optionStyle.borderLeft = '4px solid var(--border-dim)';
                     optionStyle.color = 'var(--text-muted)';
-                    optionStyle.opacity = 0.55;
+                    optionStyle.opacity = 0.5;
                   }
                 }
 
@@ -313,16 +343,22 @@ export default function TutorView({
                     disabled={isSubmitted || submitting}
                     onClick={() => handleOptionSelect(idx)}
                     id={`option-${idx}`}
-                    className="w-full text-left p-3.5 sm:p-4 rounded text-xs sm:text-sm font-medium leading-relaxed cursor-pointer block"
+                    className="w-full text-left p-3.5 sm:p-4 rounded text-xs sm:text-sm font-medium leading-relaxed cursor-pointer flex items-center justify-between gap-3"
                     style={optionStyle}
                   >
                     <span>{option}</span>
+                    {isSubmitted && isCorrect && (
+                      <CheckCircle size={18} weight="fill" style={{ color: 'var(--green)', flexShrink: 0 }} />
+                    )}
+                    {isSubmitted && isWrong && (
+                      <XCircle size={18} weight="fill" style={{ color: 'var(--red)', flexShrink: 0 }} />
+                    )}
                   </button>
                 );
               })}
             </div>
 
-            {/* Action Buttons & Feedback Area */}
+            {/* Action Buttons & Post-Answer Area */}
             {!isSubmitted ? (
               <button
                 id="submit-answer"
@@ -335,44 +371,86 @@ export default function TutorView({
               </button>
             ) : (
               <div className="space-y-4 animate-fade-in">
-                {/* Result Feedback Pod */}
-                <div 
-                  className="rounded-lg p-4 sm:p-5 border"
+                {/* Single Toggle AI Explanation Button (NEVER auto-opens) */}
+                <button
+                  type="button"
+                  id="toggle-explanation-btn"
+                  onClick={() => setShowExplanation(prev => !prev)}
+                  className="w-full py-2.5 px-4 rounded-lg flex items-center justify-between text-xs font-semibold border transition-all cursor-pointer"
                   style={{
-                    background: lastResult?.correct ? 'var(--green-dim)' : 'var(--red-dim)',
-                    borderColor: lastResult?.correct ? 'var(--green-border)' : 'var(--red-border)',
+                    background: showExplanation ? 'var(--bg-raised)' : 'var(--bg-surface)',
+                    borderColor: showExplanation ? 'var(--green-border)' : 'var(--border-mid)',
+                    color: showExplanation ? 'var(--green)' : 'var(--text-secondary)',
                   }}
                 >
-                  <div className="flex items-start gap-3">
-                    {lastResult?.correct ? (
-                      <CheckCircle size={22} weight="fill" style={{ color: 'var(--green)', flexShrink: 0, marginTop: 2 }} />
-                    ) : (
-                      <XCircle size={22} weight="fill" style={{ color: 'var(--red)', flexShrink: 0, marginTop: 2 }} />
-                    )}
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                          {lastResult?.correct ? 'Correct' : 'Incorrect'}
-                        </span>
-                        <span 
-                          className="font-mono text-xs px-2 py-0.5 rounded border"
-                          style={{
-                            background: 'var(--bg-surface)',
-                            borderColor: 'var(--border-mid)',
-                            color: 'var(--text-secondary)'
-                          }}
-                        >
-                          {Math.round(lastResult?.p_known_before * 100)}% → {Math.round(lastResult?.p_known_after * 100)}%
-                        </span>
-                      </div>
-                      <p className="text-xs sm:text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                        {questionItem.explanation_hint}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <Brain size={16} weight="duotone" style={{ color: 'var(--green)' }} />
+                    <span>{showExplanation ? 'Hide AI Concept Explanation' : 'Show AI Concept Explanation'}</span>
                   </div>
-                </div>
+                  {showExplanation ? <CaretUp size={14} /> : <CaretDown size={14} />}
+                </button>
 
-                {/* Continue Button */}
+                {/* ── Collapsible Vidya AI Explainer Card ── */}
+                {showExplanation && (
+                  <div 
+                    className="p-5 rounded-lg transition-all animate-fade-in"
+                    style={{
+                      background: 'var(--bg-raised)',
+                      border: '1px solid var(--border-mid)',
+                    }}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b" style={{ borderColor: 'var(--border-dim)' }}>
+                      <div className="flex items-center gap-2">
+                        <Sparkle size={14} weight="fill" style={{ color: 'var(--accent)' }} />
+                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>
+                          Concept Breakdown
+                        </span>
+                        {explanation?.from_cache && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-gray-400 font-mono">
+                            cached
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Multi-style switcher pills */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {STYLE_OPTIONS.map((st) => {
+                          const Icon = st.icon;
+                          const isSelected = activeStyle === st.id;
+                          return (
+                            <button
+                              key={st.id}
+                              onClick={() => setActiveStyle(st.id)}
+                              className="px-2 py-0.5 rounded text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer"
+                              style={{
+                                background: isSelected ? 'var(--green-dim)' : 'var(--bg-surface)',
+                                color: isSelected ? 'var(--green)' : 'var(--text-muted)',
+                                border: `1px solid ${isSelected ? 'var(--green-border)' : 'var(--border-dim)'}`,
+                              }}
+                            >
+                              <Icon size={11} weight={isSelected ? 'bold' : 'regular'} />
+                              <span>{st.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Explanation Content */}
+                    {loadingExplanation ? (
+                      <div className="py-3 flex items-center gap-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <ArrowsClockwise size={14} className="animate-spin text-emerald-400" />
+                        <span>Generating {activeStyle.replace('_', ' ')} explanation with Gemini...</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs sm:text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                        {explanation?.explanation || 'Loading concept breakdown...'}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Continue to Next Question Button */}
                 <button
                   id="continue-learning"
                   disabled={loadingNext}
@@ -380,9 +458,10 @@ export default function TutorView({
                     setSelectedOption(null);
                     setIsSubmitted(false);
                     setLastResult(null);
+                    setShowExplanation(false);
                     if (onNextQuestion) await onNextQuestion();
                   }}
-                  className="btn btn-primary w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
+                  className="btn btn-primary w-full py-3 text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>{loadingNext ? 'Loading Next Practice Question...' : 'Continue to Next Question'}</span>
                   <ArrowRight size={16} weight="bold" />
