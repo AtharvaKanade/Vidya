@@ -6,6 +6,7 @@ import {
   CaretDown, CaretUp
 } from '@phosphor-icons/react';
 import { getExplanation } from '../api';
+import FormattedExplanation from './FormattedExplanation';
 
 const STYLE_OPTIONS = [
   { id: 'default', label: 'Intuition', icon: BookOpen },
@@ -39,7 +40,21 @@ export default function TutorView({
     let isMounted = true;
     if (isSubmitted && showExplanation && session?.session_id && currentConcept?.concept_id) {
       setLoadingExplanation(true);
-      getExplanation(session.session_id, currentConcept.concept_id, activeStyle)
+      const chosenText = selectedOption !== null && questionItem.options ? questionItem.options[selectedOption] : null;
+      const correctText = questionItem.options && questionItem.answer_index !== undefined ? questionItem.options[questionItem.answer_index] : null;
+      const isCor = selectedOption === questionItem.answer_index;
+
+      getExplanation(session.session_id, {
+        conceptId: currentConcept.concept_id,
+        style: activeStyle,
+        questionId: questionItem.id,
+        questionText: questionItem.question,
+        options: questionItem.options,
+        userAnswer: chosenText,
+        correctAnswer: correctText,
+        isCorrect: isCor,
+        explanationHint: questionItem.explanation_hint,
+      })
         .then((res) => {
           if (isMounted) {
             setExplanation(res);
@@ -55,7 +70,15 @@ export default function TutorView({
     return () => {
       isMounted = false;
     };
-  }, [isSubmitted, showExplanation, session?.session_id, currentConcept?.concept_id, activeStyle]);
+  }, [
+    isSubmitted, 
+    showExplanation, 
+    session?.session_id, 
+    currentConcept?.concept_id, 
+    currentConcept?.question?.id, 
+    activeStyle, 
+    selectedOption
+  ]);
 
   // Reset answer states on concept change
   useEffect(() => {
@@ -438,14 +461,14 @@ export default function TutorView({
 
                     {/* Explanation Content */}
                     {loadingExplanation ? (
-                      <div className="py-3 flex items-center gap-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        <ArrowsClockwise size={14} className="animate-spin text-emerald-400" />
+                      <div className="py-4 flex items-center gap-2.5 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        <ArrowsClockwise size={16} className="animate-spin text-emerald-400" />
                         <span>Generating {activeStyle.replace('_', ' ')} explanation with Gemini...</span>
                       </div>
                     ) : (
-                      <p className="text-xs sm:text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                        {explanation?.explanation || 'Loading concept breakdown...'}
-                      </p>
+                      <div className="pt-1">
+                        <FormattedExplanation content={explanation?.explanation || 'Loading concept breakdown...'} />
+                      </div>
                     )}
                   </div>
                 )}

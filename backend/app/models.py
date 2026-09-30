@@ -72,10 +72,17 @@ class AnswerResponse(BaseModel):
 
 
 class ExplainRequest(BaseModel):
-    """Request for an LLM-generated explanation."""
+    """Request for an elaborate LLM-generated explanation for a specific question."""
 
     concept_id: str
     style: str = "default"
+    question_id: Optional[str] = None
+    question_text: Optional[str] = None
+    options: Optional[List[str]] = None
+    user_answer: Optional[str] = None
+    correct_answer: Optional[str] = None
+    is_correct: Optional[bool] = None
+    explanation_hint: Optional[str] = None
 
 
 class ExplainResponse(BaseModel):
@@ -84,6 +91,7 @@ class ExplainResponse(BaseModel):
     session_id: str
     concept_id: str
     concept_name: str
+    question_id: Optional[str] = None
     style: str
     explanation: str
     from_cache: bool = False

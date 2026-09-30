@@ -56,13 +56,30 @@ export async function submitAnswer(sessionId, { conceptId, questionId, correct, 
   });
 }
 
-export async function getExplanation(sessionId, conceptId, style = 'default') {
+export async function getExplanation(sessionId, payloadOrConceptId, maybeStyle = 'default') {
+  let body = {};
+  if (typeof payloadOrConceptId === 'object') {
+    body = {
+      concept_id: payloadOrConceptId.conceptId,
+      style: payloadOrConceptId.style || 'default',
+      question_id: payloadOrConceptId.questionId || null,
+      question_text: payloadOrConceptId.questionText || null,
+      options: payloadOrConceptId.options || null,
+      user_answer: payloadOrConceptId.userAnswer || null,
+      correct_answer: payloadOrConceptId.correctAnswer || null,
+      is_correct: payloadOrConceptId.isCorrect ?? null,
+      explanation_hint: payloadOrConceptId.explanationHint || null,
+    };
+  } else {
+    body = {
+      concept_id: payloadOrConceptId,
+      style: maybeStyle,
+    };
+  }
+
   return fetchJson(`/session/${sessionId}/explain`, {
     method: 'POST',
-    body: JSON.stringify({
-      concept_id: conceptId,
-      style,
-    }),
+    body: JSON.stringify(body),
   });
 }
 

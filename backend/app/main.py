@@ -352,15 +352,37 @@ async def generate_explanation(session_id: str, req: ExplainRequest) -> ExplainR
     if p_known is None:
         p_known = DEFAULT_PARAMS.p_init
 
-    recent = get_recent_attempts(session_id, concept_id=req.concept_id, limit=5)
-    wrong_q_ids = [a["question_id"] for a in recent if not a["correct"]]
+    # Resolve question details if question_id is provided
+    question_text = req.question_text
+    options = req.options
+    correct_answer = req.correct_answer
+    explanation_hint = req.explanation_hint
+    user_answer = req.user_answer
+    is_correct = req.is_correct
+
+    if req.question_id:
+        matching_q = next((q for q in QUESTIONS_LIST if q.get("id") == req.question_id), None)
+        if matching_q:
+            question_text = question_text or matching_q.get("question")
+            options = options or matching_q.get("options")
+            explanation_hint = explanation_hint or matching_q.get("explanation_hint")
+            if not correct_answer and "answer_index" in matching_q and matching_q.get("options"):
+                idx = matching_q["answer_index"]
+                if 0 <= idx < len(matching_q["options"]):
+                    correct_answer = matching_q["options"][idx]
 
     style = req.style if req.style in STYLES else "default"
     explanation_text, from_cache, is_fallback = tutor_explain(
         concept_name=concept_dict["name"],
         concept_id=req.concept_id,
         p_known=p_known,
-        wrong_answers=wrong_q_ids,
+        question_id=req.question_id,
+        question_text=question_text,
+        options=options,
+        user_answer=user_answer,
+        correct_answer=correct_answer,
+        is_correct=is_correct,
+        explanation_hint=explanation_hint,
         style=style,
         concept_desc=concept_dict.get("description"),
     )
@@ -370,6 +392,7 @@ async def generate_explanation(session_id: str, req: ExplainRequest) -> ExplainR
         action="explanation_generated",
         payload={
             "concept_id": req.concept_id,
+            "question_id": req.question_id,
             "style": style,
             "from_cache": from_cache,
             "is_fallback": is_fallback,
@@ -381,6 +404,7 @@ async def generate_explanation(session_id: str, req: ExplainRequest) -> ExplainR
         session_id=session_id,
         concept_id=req.concept_id,
         concept_name=concept_dict["name"],
+        question_id=req.question_id,
         style=style,
         explanation=explanation_text,
         from_cache=from_cache,
