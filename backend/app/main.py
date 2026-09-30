@@ -11,24 +11,38 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.bkt import DEFAULT_PARAMS, mastery_level, update as bkt_update
 from backend.app.db import (
+    authenticate_user,
+    create_auth_token,
+    create_otp_request,
     create_session,
+    create_user,
     get_all_mastery,
     get_mastery,
     get_recent_attempts,
     get_session,
     get_traces,
+    get_user_by_token,
     init_db,
     record_attempt,
+    resend_otp_code,
     set_mastery,
+    verify_and_create_user,
 )
 from backend.app.models import (
     AnswerRequest,
     AnswerResponse,
+    AuthLoginRequest,
+    AuthOTPConfirmRequest,
+    AuthOTPRequest,
+    AuthOTPResendRequest,
+    AuthOTPResponse,
+    AuthResponse,
+    AuthSignupRequest,
     ExplainRequest,
     ExplainResponse,
     MasteryConceptItem,
@@ -41,6 +55,7 @@ from backend.app.models import (
     SessionStartResponse,
     TraceResponse,
     TraceStepItem,
+    UserProfile,
 )
 from backend.app.selector import check_uncertainty_rule, select_next_concept
 from backend.app.trace import log_event
@@ -91,6 +106,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+def get_authenticated_user(authorization: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Resolve a user from the Authorization bearer token when present."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ", 1)[1].strip()
+    return get_user_by_token(token)
+
 # Configure CORS
 origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 origins = [o.strip() for o in origins_str.split(",") if o.strip()]
@@ -104,10 +127,319 @@ app.add_middleware(
 )
 
 
+def send_otp_email_notification(email: str, name: str, otp_code: str) -> bool:
+    """Log OTP code to console and send email if SMTP server configured.
+    Returns True if sent via SMTP, False if running in dev mode without SMTP.
+    """
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = os.getenv("SMTP_PORT")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASSWORD")
+
+    is_smtp_configured = bool(
+        smtp_host and smtp_host.strip() and
+        smtp_port and smtp_port.strip() and
+        smtp_user and smtp_user.strip() and
+        smtp_pass and smtp_pass.strip()
+    )
+
+    print("\n=======================================================")
+    print(f"[EMAIL VERIFICATION] Target Email: {email}")
+    print(f"Learner Name: {name}")
+    print(f"OTP CODE: [ {otp_code} ]")
+    print(f"SMTP Delivery Enabled: {is_smtp_configured}")
+    print("=======================================================\n")
+
+    if is_smtp_configured:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            msg = MIMEText(
+                f"Hello {name},\n\n"
+                f"Your Vidya AI Tutor account verification OTP code is: {otp_code}\n\n"
+                f"This code will expire in 10 minutes.\n\n"
+                f"If you did not request this code, please ignore this email.\n\n"
+                f"Happy Learning!\nVidya AI Tutor Team"
+            )
+            msg["Subject"] = f"Vidya Signup Verification OTP: {otp_code}"
+            msg["From"] = os.getenv("SMTP_FROM", smtp_user).strip()
+            msg["To"] = email
+
+            port = int(smtp_port.strip())
+            with smtplib.SMTP(smtp_host.strip(), port, timeout=12) as server:
+                server.starttls()
+                server.login(smtp_user.strip(), smtp_pass.strip())
+                server.send_message(msg)
+            print(f"[EMAIL SERVICE SUCCESS] Real OTP email sent to {email}")
+            return True
+        except Exception as err:
+            print(f"[EMAIL SERVICE ERROR] Failed sending SMTP email to {email}: {err}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to send email via SMTP ({err}). Please check your SMTP settings in .env.",
+            ) from err
+
+    return False
+
+
 @app.get("/health", tags=["Health"])
 async def health_check() -> Dict[str, str]:
     """Health check endpoint."""
     return {"status": "healthy", "service": "vidya-backend", "version": "0.2.0"}
+
+
+@app.post(
+    "/auth/signup/request",
+    response_model=AuthOTPResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Auth"],
+)
+async def signup_request_otp(payload: AuthOTPRequest) -> AuthOTPResponse:
+    """Request an OTP verification code sent to learner's email."""
+    if payload.password != payload.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password and confirm password must match.",
+        )
+    try:
+        otp_info = create_otp_request(payload.email, payload.name, payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    sent_via_smtp = send_otp_email_notification(otp_info["email"], otp_info["name"], otp_info["otp_code"])
+
+    return AuthOTPResponse(
+        message=f"Verification OTP code sent to {otp_info['email']}.",
+        email=otp_info["email"],
+        debug_otp=otp_info["otp_code"],
+    )
+
+
+@app.post(
+    "/auth/signup/confirm",
+    response_model=AuthResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Auth"],
+)
+async def signup_confirm_otp(payload: AuthOTPConfirmRequest) -> AuthResponse:
+    """Verify 6-digit OTP code and create learner account."""
+    try:
+        user = verify_and_create_user(payload.email, payload.otp)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    token = create_auth_token(user["id"])
+    return AuthResponse(
+        token=token,
+        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
+    )
+
+
+@app.post(
+    "/auth/signup/resend",
+    response_model=AuthOTPResponse,
+    tags=["Auth"],
+)
+async def signup_resend_otp(payload: AuthOTPResendRequest) -> AuthOTPResponse:
+    """Resend a fresh 6-digit OTP code to learner's email."""
+    try:
+        otp_info = resend_otp_code(payload.email)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    sent_via_smtp = send_otp_email_notification(otp_info["email"], otp_info["name"], otp_info["otp_code"])
+
+    return AuthOTPResponse(
+        message=f"A fresh verification OTP code has been sent to {otp_info['email']}.",
+        email=otp_info["email"],
+        debug_otp=otp_info["otp_code"],
+    )
+
+
+@app.post(
+    "/auth/signup",
+    response_model=AuthResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Auth"],
+)
+async def signup(payload: AuthSignupRequest) -> AuthResponse:
+    """Direct account creation endpoint for backwards compatibility."""
+    email = payload.email.strip().lower()
+    if payload.password != payload.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password and confirm password must match.",
+        )
+    try:
+        user = create_user(email, payload.password, payload.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    token = create_auth_token(user["id"])
+    return AuthResponse(
+        token=token,
+        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
+    )
+
+
+@app.post(
+    "/auth/login",
+    response_model=AuthResponse,
+    tags=["Auth"],
+)
+async def login(payload: AuthLoginRequest) -> AuthResponse:
+    """Authenticate a learner by email and password."""
+    user = authenticate_user(payload.email, payload.password)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+        )
+
+    token = create_auth_token(user["id"])
+    return AuthResponse(
+        token=token,
+        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
+    )
+
+
+@app.get("/auth/me", response_model=UserProfile, tags=["Auth"])
+async def get_current_user_profile(authorization: Optional[str] = Header(default=None)) -> UserProfile:
+    """Return the currently authenticated user's profile."""
+    user = get_authenticated_user(authorization)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+    return UserProfile(id=user["id"], name=user["name"], email=user["email"])
+
+
+@app.post(
+    "/auth/signup/request",
+    response_model=AuthOTPResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Auth"],
+)
+async def signup_request_otp(payload: AuthOTPRequest) -> AuthOTPResponse:
+    """Request an OTP verification code sent to learner's email."""
+    if payload.password != payload.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password and confirm password must match.",
+        )
+    try:
+        otp_info = create_otp_request(payload.email, payload.name, payload.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    sent_via_smtp = send_otp_email_notification(otp_info["email"], otp_info["name"], otp_info["otp_code"])
+
+    return AuthOTPResponse(
+        message=f"Verification OTP code sent to {otp_info['email']}.",
+        email=otp_info["email"],
+        debug_otp=otp_info["otp_code"],
+    )
+
+
+@app.post(
+    "/auth/signup/confirm",
+    response_model=AuthResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Auth"],
+)
+async def signup_confirm_otp(payload: AuthOTPConfirmRequest) -> AuthResponse:
+    """Verify 6-digit OTP code and create learner account."""
+    try:
+        user = verify_and_create_user(payload.email, payload.otp)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    token = create_auth_token(user["id"])
+    return AuthResponse(
+        token=token,
+        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
+    )
+
+
+@app.post(
+    "/auth/signup/resend",
+    response_model=AuthOTPResponse,
+    tags=["Auth"],
+)
+async def signup_resend_otp(payload: AuthOTPResendRequest) -> AuthOTPResponse:
+    """Resend a fresh 6-digit OTP code to learner's email."""
+    try:
+        otp_info = resend_otp_code(payload.email)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    sent_via_smtp = send_otp_email_notification(otp_info["email"], otp_info["name"], otp_info["otp_code"])
+
+    return AuthOTPResponse(
+        message=f"A fresh verification OTP code has been sent to {otp_info['email']}.",
+        email=otp_info["email"],
+        debug_otp=otp_info["otp_code"],
+    )
+
+
+@app.post(
+    "/auth/signup",
+    response_model=AuthResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Auth"],
+)
+async def signup(payload: AuthSignupRequest) -> AuthResponse:
+    """Direct account creation endpoint for backwards compatibility."""
+    email = payload.email.strip().lower()
+    if payload.password != payload.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password and confirm password must match.",
+        )
+    try:
+        user = create_user(email, payload.password, payload.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    token = create_auth_token(user["id"])
+    return AuthResponse(
+        token=token,
+        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
+    )
+
+
+@app.post(
+    "/auth/login",
+    response_model=AuthResponse,
+    tags=["Auth"],
+)
+async def login(payload: AuthLoginRequest) -> AuthResponse:
+    """Authenticate a learner by email and password."""
+    user = authenticate_user(payload.email, payload.password)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+        )
+
+    token = create_auth_token(user["id"])
+    return AuthResponse(
+        token=token,
+        user=UserProfile(id=user["id"], name=user["name"], email=user["email"]),
+    )
+
+
+@app.get("/auth/me", response_model=UserProfile, tags=["Auth"])
+async def get_current_user_profile(authorization: Optional[str] = Header(default=None)) -> UserProfile:
+    """Return the currently authenticated user's profile."""
+    user = get_authenticated_user(authorization)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required.",
+        )
+    return UserProfile(id=user["id"], name=user["name"], email=user["email"])
 
 
 @app.post(
@@ -116,8 +448,11 @@ async def health_check() -> Dict[str, str]:
     status_code=status.HTTP_201_CREATED,
     tags=["Session"],
 )
-async def start_session(payload: Optional[SessionStartRequest] = None) -> SessionStartResponse:
-    """Initialize a new anonymous learning session."""
+async def start_session(
+    payload: Optional[SessionStartRequest] = None,
+    authorization: Optional[str] = Header(default=None),
+) -> SessionStartResponse:
+    """Initialize a new learning session for an authenticated learner when available."""
     topic = payload.topic if payload else None
     if topic:
         valid_topics = {t["id"] for t in TOPICS_LIST}
@@ -127,8 +462,9 @@ async def start_session(payload: Optional[SessionStartRequest] = None) -> Sessio
                 detail=f"Invalid topic '{topic}'. Must be one of: {sorted(valid_topics)}",
             )
 
+    user = get_authenticated_user(authorization)
     session_id = str(uuid.uuid4())
-    created_at = create_session(session_id, topic=topic)
+    created_at = create_session(session_id, topic=topic, user_id=user["id"] if user else None)
 
     # Initialize entry concepts in mastery table with p_init
     active_concepts = (

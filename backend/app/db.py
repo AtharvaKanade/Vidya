@@ -1,7 +1,11 @@
 """SQLite persistence layer for sessions, attempts, mastery states, and audit traces."""
 
+import base64
+import hashlib
 import json
+import secrets
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -22,17 +26,58 @@ def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_user_and_token_tables(conn: sqlite3.Connection) -> None:
+    """Add auth-related schema if needed for backwards compatibility."""
+    session_columns = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
+    if "user_id" not in session_columns:
+        conn.execute("ALTER TABLE sessions ADD COLUMN user_id TEXT")
+
+    user_columns = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "name" not in user_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+
+
 def init_db(db_path: Optional[Path] = None) -> None:
     """Initialize database tables per MVP.md Section 3 schema."""
     conn = get_connection(db_path)
     with conn:
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS sessions (
+            CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
-                topic TEXT,
+                name TEXT NOT NULL DEFAULT '',
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_tokens (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS otp_verifications (
+                email TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                otp_code TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                topic TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+        """)
+        _ensure_user_and_token_tables(conn)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS attempts (
                 id TEXT PRIMARY KEY,
@@ -68,14 +113,247 @@ def init_db(db_path: Optional[Path] = None) -> None:
     conn.close()
 
 
-def create_session(session_id: str, topic: Optional[str] = None, db_path: Optional[Path] = None) -> str:
+def hash_password(password: str) -> str:
+    """Hash a password using PBKDF2-HMAC-SHA256 with a random salt."""
+    salt = secrets.token_bytes(16)
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100_000)
+    return f"pbkdf2_sha256${base64.b64encode(salt).decode('ascii')}${base64.b64encode(derived).decode('ascii')}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify a user-entered password against the stored hash."""
+    try:
+        algorithm, salt_b64, digest_b64 = stored_hash.split("$")
+        if algorithm != "pbkdf2_sha256":
+            return False
+        salt = base64.b64decode(salt_b64.encode("ascii"))
+        expected = base64.b64decode(digest_b64.encode("ascii"))
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100_000)
+        return secrets.compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+def create_user(email: str, password: str, name: str = "", db_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Create a new user record with a hashed password."""
+    normalized_email = email.strip().lower()
+    cleaned_name = (name or "").strip()
+    if not normalized_email:
+        raise ValueError("Email is required.")
+    if "@" not in normalized_email:
+        raise ValueError("Email is invalid.")
+    if not cleaned_name:
+        raise ValueError("Name is required.")
+    if len(password) < 6:
+        raise ValueError("Password must be at least 6 characters long.")
+
+    conn = get_connection(db_path)
+    existing = conn.execute("SELECT id FROM users WHERE email = ?", (normalized_email,)).fetchone()
+    if existing:
+        conn.close()
+        raise ValueError("A user with this email already exists.")
+
+    user_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+    with conn:
+        conn.execute(
+            "INSERT INTO users (id, email, password_hash, created_at, name) VALUES (?, ?, ?, ?, ?)",
+            (user_id, normalized_email, hash_password(password), created_at, cleaned_name),
+        )
+    conn.close()
+    return {"id": user_id, "email": normalized_email, "name": cleaned_name, "created_at": created_at}
+
+
+def create_otp_request(email: str, name: str, password: str, db_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Store a pending OTP verification for email signup."""
+    normalized_email = email.strip().lower()
+    cleaned_name = (name or "").strip()
+    if not normalized_email or "@" not in normalized_email:
+        raise ValueError("Valid email is required.")
+    if not cleaned_name:
+        raise ValueError("Name is required.")
+    if len(password) < 6:
+        raise ValueError("Password must be at least 6 characters long.")
+
+    conn = get_connection(db_path)
+    existing = conn.execute("SELECT id FROM users WHERE email = ?", (normalized_email,)).fetchone()
+    if existing:
+        conn.close()
+        raise ValueError("A user with this email already exists.")
+
+    otp_code = f"{secrets.randbelow(900000) + 100000}"  # guaranteed 6-digit OTP string
+    pw_hash = hash_password(password)
+    now = datetime.now(timezone.utc)
+    expires_at = (now + datetime.timedelta(seconds=600) if hasattr(datetime, 'timedelta') else now).isoformat()
+    # Using datetime.fromtimestamp or timedelta safely
+    from datetime import timedelta
+    expires_at = (now + timedelta(minutes=10)).isoformat()
+    created_at = now.isoformat()
+
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO otp_verifications (email, name, password_hash, otp_code, expires_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(email) DO UPDATE SET
+                name = excluded.name,
+                password_hash = excluded.password_hash,
+                otp_code = excluded.otp_code,
+                expires_at = excluded.expires_at,
+                created_at = excluded.created_at
+            """,
+            (normalized_email, cleaned_name, pw_hash, otp_code, expires_at, created_at),
+        )
+    conn.close()
+    return {
+        "email": normalized_email,
+        "name": cleaned_name,
+        "otp_code": otp_code,
+        "expires_at": expires_at,
+    }
+
+
+def verify_and_create_user(email: str, otp_code: str, db_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Verify OTP and complete user account creation."""
+    normalized_email = email.strip().lower()
+    clean_otp = (otp_code or "").strip()
+    if not normalized_email or not clean_otp:
+        raise ValueError("Email and OTP code are required.")
+
+    conn = get_connection(db_path)
+    row = conn.execute(
+        "SELECT email, name, password_hash, otp_code, expires_at FROM otp_verifications WHERE email = ?",
+        (normalized_email,),
+    ).fetchone()
+
+    if row is None:
+        conn.close()
+        raise ValueError("No pending signup found for this email. Please request a new OTP.")
+
+    if row["otp_code"] != clean_otp:
+        conn.close()
+        raise ValueError("Invalid OTP code. Please check your email and try again.")
+
+    expires_at_dt = datetime.fromisoformat(row["expires_at"])
+    now_dt = datetime.now(timezone.utc)
+    if expires_at_dt < now_dt:
+        conn.close()
+        raise ValueError("OTP verification code has expired. Please click Resend OTP.")
+
+    # Check if user was already created in the meantime
+    user_id = str(uuid.uuid4())
+    created_at = now_dt.isoformat()
+
+    with conn:
+        conn.execute(
+            "INSERT INTO users (id, email, password_hash, created_at, name) VALUES (?, ?, ?, ?, ?)",
+            (user_id, normalized_email, row["password_hash"], created_at, row["name"]),
+        )
+        conn.execute("DELETE FROM otp_verifications WHERE email = ?", (normalized_email,))
+
+    conn.close()
+    return {"id": user_id, "email": normalized_email, "name": row["name"], "created_at": created_at}
+
+
+def resend_otp_code(email: str, db_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Re-generate a fresh OTP for a pending registration."""
+    normalized_email = email.strip().lower()
+    conn = get_connection(db_path)
+    row = conn.execute(
+        "SELECT email, name, password_hash FROM otp_verifications WHERE email = ?",
+        (normalized_email,),
+    ).fetchone()
+
+    if row is None:
+        conn.close()
+        raise ValueError("No pending signup found for this email. Please enter your signup details again.")
+
+    otp_code = f"{secrets.randbelow(900000) + 100000}"
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    expires_at = (now + timedelta(minutes=10)).isoformat()
+
+    with conn:
+        conn.execute(
+            """
+            UPDATE otp_verifications
+            SET otp_code = ?, expires_at = ?, created_at = ?
+            WHERE email = ?
+            """,
+            (otp_code, expires_at, now.isoformat(), normalized_email),
+        )
+    conn.close()
+    return {
+        "email": normalized_email,
+        "name": row["name"],
+        "otp_code": otp_code,
+        "expires_at": expires_at,
+    }
+
+
+def authenticate_user(email: str, password: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """Authenticate a user by email and password."""
+    normalized_email = email.strip().lower()
+    conn = get_connection(db_path)
+    row = conn.execute(
+        "SELECT id, email, password_hash, created_at, name FROM users WHERE email = ?",
+        (normalized_email,),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    if not verify_password(password, row["password_hash"]):
+        return None
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "name": row["name"],
+        "created_at": row["created_at"],
+    }
+
+
+def create_auth_token(user_id: str, db_path: Optional[Path] = None) -> str:
+    """Create a bearer token for an authenticated user."""
+    token = secrets.token_urlsafe(32)
+    created_at = datetime.now(timezone.utc).isoformat()
+    conn = get_connection(db_path)
+    with conn:
+        conn.execute(
+            "INSERT INTO auth_tokens (token, user_id, created_at) VALUES (?, ?, ?)",
+            (token, user_id, created_at),
+        )
+    conn.close()
+    return token
+
+
+def get_user_by_token(token: str, db_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """Look up the authenticated user for a bearer token."""
+    if not token:
+        return None
+    conn = get_connection(db_path)
+    row = conn.execute(
+        """
+        SELECT u.id, u.email, u.name, u.created_at
+        FROM auth_tokens t
+        JOIN users u ON u.id = t.user_id
+        WHERE t.token = ?
+        """,
+        (token,),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return {"id": row["id"], "email": row["email"], "name": row["name"], "created_at": row["created_at"]}
+
+
+def create_session(session_id: str, topic: Optional[str] = None, user_id: Optional[str] = None, db_path: Optional[Path] = None) -> str:
     """Record a new learning session."""
     now_iso = datetime.now(timezone.utc).isoformat()
     conn = get_connection(db_path)
     with conn:
         conn.execute(
-            "INSERT INTO sessions (id, topic, created_at) VALUES (?, ?, ?)",
-            (session_id, topic, now_iso),
+            "INSERT INTO sessions (id, user_id, topic, created_at) VALUES (?, ?, ?, ?)",
+            (session_id, user_id, topic, now_iso),
         )
     conn.close()
     return now_iso
@@ -85,11 +363,16 @@ def get_session(session_id: str, db_path: Optional[Path] = None) -> Optional[Dic
     """Retrieve session record by ID."""
     conn = get_connection(db_path)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, topic, created_at FROM sessions WHERE id = ?", (session_id,))
+    cursor.execute("SELECT id, user_id, topic, created_at FROM sessions WHERE id = ?", (session_id,))
     row = cursor.fetchone()
     conn.close()
     if row:
-        return {"id": row["id"], "topic": row["topic"], "created_at": row["created_at"]}
+        return {
+            "id": row["id"],
+            "user_id": row["user_id"],
+            "topic": row["topic"],
+            "created_at": row["created_at"],
+        }
     return None
 
 

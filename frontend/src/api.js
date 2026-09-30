@@ -7,9 +7,11 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function fetchJson(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
+  const token = localStorage.getItem('vidya_auth_token');
   const config = {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     ...options,
@@ -26,6 +28,46 @@ async function fetchJson(endpoint, options = {}) {
     console.error(`API Request failed [${endpoint}]:`, err);
     throw err;
   }
+}
+
+export async function signupWithEmail(email, password, name = '', confirm_password = '') {
+  return fetchJson('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ name: name || email, email, password, confirm_password: confirm_password || password }),
+  });
+}
+
+export async function requestSignupOTP({ name, email, password, confirmPassword }) {
+  return fetchJson('/auth/signup/request', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      email,
+      password,
+      confirm_password: confirmPassword,
+    }),
+  });
+}
+
+export async function confirmSignupOTP({ email, otp }) {
+  return fetchJson('/auth/signup/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp }),
+  });
+}
+
+export async function resendSignupOTP(email) {
+  return fetchJson('/auth/signup/resend', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function loginWithEmail(email, password) {
+  return fetchJson('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
 }
 
 export async function checkHealth() {

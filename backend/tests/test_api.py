@@ -30,6 +30,89 @@ def test_health_check(client: TestClient) -> None:
     assert data["service"] == "vidya-backend"
 
 
+def test_signup_and_login_with_email(client: TestClient) -> None:
+    """Verify a user can create an account and log in with email and password."""
+    signup_res = client.post(
+        "/auth/signup",
+        json={
+            "name": "Student User",
+            "email": "student@example.com",
+            "password": "StrongPass123!",
+            "confirm_password": "StrongPass123!",
+        },
+    )
+    assert signup_res.status_code == 201
+    signup_data = signup_res.json()
+    assert signup_data["user"]["email"] == "student@example.com"
+    assert "token" in signup_data
+    assert signup_data["token"]
+
+    login_res = client.post(
+        "/auth/login",
+        json={"email": "student@example.com", "password": "StrongPass123!"},
+    )
+    assert login_res.status_code == 200
+    login_data = login_res.json()
+    assert login_data["user"]["email"] == "student@example.com"
+    assert login_data["token"]
+
+
+def test_duplicate_email_is_rejected(client: TestClient) -> None:
+    """Verify duplicate registration is blocked."""
+    payload = {
+        "name": "Duplicate User",
+        "email": "dup@example.com",
+        "password": "StrongPass123!",
+        "confirm_password": "StrongPass123!",
+    }
+    first = client.post("/auth/signup", json=payload)
+    assert first.status_code == 201
+
+    second = client.post("/auth/signup", json=payload)
+    assert second.status_code == 400
+    assert "already" in second.json()["detail"].lower()
+
+
+def test_email_signup_requires_otp_verification(client: TestClient) -> None:
+    """Verify the OTP-based signup flow confirms the account before creating it."""
+    request_res = client.post(
+        "/auth/signup/request",
+        json={
+            "name": "OTP User",
+            "email": "otp.user@example.com",
+            "password": "StrongPass123!",
+            "confirm_password": "StrongPass123!",
+        },
+    )
+    assert request_res.status_code == 200
+    request_data = request_res.json()
+    assert request_data["message"]
+    assert request_data["debug_otp"]
+
+    confirm_res = client.post(
+        "/auth/signup/confirm",
+        json={
+            "email": "otp.user@example.com",
+            "otp": request_data["debug_otp"],
+        },
+    )
+    assert confirm_res.status_code == 201
+    confirm_data = confirm_res.json()
+    assert confirm_data["user"]["email"] == "otp.user@example.com"
+    assert confirm_data["user"]["name"] == "OTP User"
+    assert confirm_data["token"]
+
+    # Once confirmed, the same email should no longer be eligible to sign up without a fresh OTP flow.
+    retry_res = client.post(
+        "/auth/signup/confirm",
+        json={
+            "email": "otp.user@example.com",
+            "otp": "000000",
+        },
+    )
+    assert retry_res.status_code == 400
+
+
 def test_start_session_all_topics(client: TestClient) -> None:
     """Verify session creation without specific topic."""
     response = client.post("/session/start", json={})

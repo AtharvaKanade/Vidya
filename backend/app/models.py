@@ -4,6 +4,67 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class AuthSignupRequest(BaseModel):
+    """Request payload for email signup."""
+
+    name: str = Field(..., min_length=2, description="Full name for the learner account.")
+    email: str = Field(..., min_length=3, description="Email address for the learner account.")
+    password: str = Field(..., min_length=6, description="Password for the learner account.")
+    confirm_password: str = Field(..., min_length=6, description="Password confirmation.")
+
+
+class AuthOTPRequest(BaseModel):
+    """Request payload for initiating OTP email signup."""
+
+    name: str = Field(..., min_length=2, description="Full name for the learner account.")
+    email: str = Field(..., min_length=3, description="Email address for the learner account.")
+    password: str = Field(..., min_length=6, description="Password for the learner account.")
+    confirm_password: str = Field(..., min_length=6, description="Password confirmation.")
+
+
+class AuthOTPResponse(BaseModel):
+    """Response returned when an OTP has been generated and sent."""
+
+    message: str
+    email: str
+    debug_otp: Optional[str] = Field(default=None, description="OTP code included in development mode for easy testing.")
+
+
+class AuthOTPConfirmRequest(BaseModel):
+    """Request payload to verify OTP and confirm account creation."""
+
+    email: str = Field(..., min_length=3, description="Email address for the learner account.")
+    otp: str = Field(..., min_length=6, max_length=6, description="6-digit OTP code.")
+
+
+class AuthOTPResendRequest(BaseModel):
+    """Request payload to resend OTP code."""
+
+    email: str = Field(..., min_length=3, description="Email address for the learner account.")
+
+
+class AuthLoginRequest(BaseModel):
+    """Request payload for email login."""
+
+    email: str = Field(..., min_length=3, description="Email address for the learner account.")
+    password: str = Field(..., min_length=6, description="Password for the learner account.")
+
+
+class UserProfile(BaseModel):
+    """Public user information returned to the client."""
+
+    id: str
+    name: str
+    email: str
+
+
+class AuthResponse(BaseModel):
+    """Authentication response containing a bearer token and user profile."""
+
+    token: str
+    user: UserProfile
+
+
 class SessionStartRequest(BaseModel):
     """Payload to initialize a learning session."""
 

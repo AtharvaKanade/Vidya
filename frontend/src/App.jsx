@@ -5,6 +5,8 @@ import TutorView from './components/TutorView';
 import MasteryMap from './components/MasteryMap';
 import TraceViewer from './components/TraceViewer';
 import SelfRatingModal from './components/SelfRatingModal';
+import ProfileModal from './components/ProfileModal';
+import AuthScreen from './components/AuthScreen';
 import { 
   startSession, 
   getNextConcept, 
@@ -16,6 +18,9 @@ import {
 import { WarningCircle, X } from '@phosphor-icons/react';
 
 export default function App() {
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('vidya_auth_token') || null);
+  const [userName, setUserName] = useState(() => localStorage.getItem('vidya_user_name') || '');
+  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('vidya_user_email') || '');
   const [session, setSession] = useState(null);
   const [activeTab, setActiveTab] = useState('selector'); // 'selector' | 'tutor' | 'mastery' | 'trace'
   const [currentConcept, setCurrentConcept] = useState(null);
@@ -25,6 +30,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [selfRatingModalOpen, setSelfRatingModalOpen] = useState(false);
   const [selfRatingConcept, setSelfRatingConcept] = useState(null);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   // Map tabs to URL hashes
   const tabToHash = {
@@ -166,6 +172,30 @@ export default function App() {
     changeTab('selector', true);
   };
 
+  const handleAuthenticated = (token, user) => {
+    setAuthToken(token);
+    setUserName(user.name || user.email || 'Learner');
+    setUserEmail(user.email || '');
+    localStorage.setItem('vidya_auth_token', token);
+    localStorage.setItem('vidya_user_name', user.name || user.email || 'Learner');
+    localStorage.setItem('vidya_user_email', user.email || '');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('vidya_auth_token');
+    localStorage.removeItem('vidya_user_email');
+    localStorage.removeItem('vidya_user_name');
+    localStorage.removeItem('vidya_session');
+    setAuthToken(null);
+    setUserName('');
+    setUserEmail('');
+    setSession(null);
+    setCurrentConcept(null);
+    setMasteryData(null);
+    setTraceData(null);
+    setActiveTab('selector');
+  };
+
   const handleNextQuestion = async () => {
     if (!session) return;
     setLoading(true);
@@ -200,6 +230,10 @@ export default function App() {
     ? Math.round((masteryData.concepts.filter(c => c.p_known >= 0.85).length / masteryData.concepts.length) * 100)
     : 0;
 
+  if (!authToken) {
+    return <AuthScreen onAuthenticated={handleAuthenticated} />;
+  }
+
   return (
     <div className="app-shell min-h-[100dvh]" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Navigation */}
@@ -207,9 +241,13 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={changeTab}
         session={session}
+        userName={userName}
+        userEmail={userEmail}
+        onLogout={handleLogout}
         onResetSession={handleResetSession}
         onGoHome={() => changeTab('selector', true)}
         overallMastery={overallMastery}
+        onOpenProfile={() => setProfileModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -274,6 +312,17 @@ export default function App() {
         concept={selfRatingConcept}
         onClose={() => setSelfRatingModalOpen(false)}
         onSubmitRating={handleSelfRatingSubmit}
+      />
+
+      {/* Profile modal */}
+      <ProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        userName={userName}
+        userEmail={userEmail}
+        session={session}
+        overallMastery={overallMastery}
+        onLogout={handleLogout}
       />
     </div>
   );
