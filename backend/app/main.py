@@ -23,13 +23,16 @@ from backend.app.db import (
     create_user,
     get_all_mastery,
     get_mastery,
+    get_question,
     get_recent_attempts,
     get_session,
+    get_session_answered_questions,
     get_traces,
     get_user_by_token,
     init_db,
     record_attempt,
     resend_otp_code,
+    save_question,
     set_mastery,
     verify_and_create_user,
 )
@@ -59,7 +62,7 @@ from backend.app.models import (
 )
 from backend.app.selector import check_uncertainty_rule, select_next_concept
 from backend.app.trace import log_event
-from backend.app.tutor import STYLES, explain as tutor_explain
+from backend.app.tutor import STYLES, explain as tutor_explain, generate_adaptive_question
 
 # Load environment configuration
 load_dotenv()
@@ -96,6 +99,9 @@ QUESTIONS_LIST: List[Dict[str, Any]] = load_question_bank()
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     init_db()
+    # Ensure all bank questions are registered in database
+    for q in QUESTIONS_LIST:
+        save_question(q)
     yield
 
 
@@ -520,22 +526,101 @@ async def get_next_concept(session_id: str) -> NextConceptResponse:
     recent_concept_attempts = get_recent_attempts(session_id, concept_id=c_id, limit=6)
     needs_self_rating = check_uncertainty_rule(recent_concept_attempts, current_p)
 
-    # Question Selection: Filter question bank for this concept
+    # Question Selection: Retrieve all answered questions in this session
+    answered_items = get_session_answered_questions(session_id)
+    answered_q_ids = {item["id"] for item in answered_items}
     recent_attempts_all = get_recent_attempts(session_id, limit=200)
-    answered_q_ids = {a["question_id"] for a in recent_attempts_all}
+    for a in recent_attempts_all:
+        answered_q_ids.add(a["question_id"])
 
-    concept_questions = [q for q in QUESTIONS_LIST if q.get("concept") == c_id]
-    unanswered_q = [q for q in concept_questions if q["id"] not in answered_q_ids]
+    prev_questions = [item["question"] for item in answered_items]
+    for q in QUESTIONS_LIST:
+        if q.get("id") in answered_q_ids and q.get("question") not in prev_questions:
+            prev_questions.append(q["question"])
 
-    # Try matching targeted difficulty first
-    targeted_q = [q for q in unanswered_q if q.get("difficulty") == difficulty]
+    # Determine last wrong question & user choice if previous attempt was incorrect
+    last_wrong_question = None
+    last_correct_answer = None
+
+    if recent_concept_attempts and not recent_concept_attempts[0].get("correct", True):
+        last_qid = recent_concept_attempts[0].get("question_id")
+        matching_last_q = get_question(last_qid) or next((q for q in QUESTIONS_LIST if q.get("id") == last_qid), None)
+        if matching_last_q:
+            last_wrong_question = matching_last_q.get("question")
+            opts = matching_last_q.get("options", [])
+            ans_idx = matching_last_q.get("answer_index", 0)
+            if 0 <= ans_idx < len(opts):
+                last_correct_answer = opts[ans_idx]
+    elif recent_attempts_all and not recent_attempts_all[0].get("correct", True):
+        last_qid = recent_attempts_all[0].get("question_id")
+        matching_last_q = get_question(last_qid) or next((q for q in QUESTIONS_LIST if q.get("id") == last_qid), None)
+        if matching_last_q:
+            last_wrong_question = matching_last_q.get("question")
+            opts = matching_last_q.get("options", [])
+            ans_idx = matching_last_q.get("answer_index", 0)
+            if 0 <= ans_idx < len(opts):
+                last_correct_answer = opts[ans_idx]
+
+    topic_dict = next((t for t in TOPICS_LIST if t["id"] == selected_concept.get("topic")), None)
+    topic_name = topic_dict["name"] if topic_dict else None
+
+    # Adapt difficulty: if student had an error, force Level 1 (foundational scaffolding)
+    target_difficulty = 1 if last_wrong_question is not None else difficulty
+
+    generated_q = generate_adaptive_question(
+        concept_name=selected_concept["name"],
+        concept_id=c_id,
+        difficulty=target_difficulty,
+        p_known=current_p,
+        topic_name=topic_name,
+        concept_desc=selected_concept.get("description"),
+        recent_attempts=recent_concept_attempts,
+        previous_questions=prev_questions,
+        last_wrong_question=last_wrong_question,
+        last_correct_answer=last_correct_answer,
+    )
+
+    is_generated = False
     selected_q_dict = None
-    if targeted_q:
-        selected_q_dict = targeted_q[0]
-    elif unanswered_q:
-        selected_q_dict = unanswered_q[0]
-    elif concept_questions:
-        selected_q_dict = concept_questions[0]
+
+    if generated_q and generated_q.get("question") not in prev_questions:
+        selected_q_dict = generated_q
+        QUESTIONS_LIST.append(generated_q)
+        save_question(generated_q)
+        is_generated = True
+    else:
+        # Fallback to calibrated question bank: pick an un-asked question
+        concept_questions = [q for q in QUESTIONS_LIST if q.get("concept") == c_id]
+        unanswered_q = [
+            q for q in concept_questions
+            if q["id"] not in answered_q_ids and q.get("question") not in prev_questions
+        ]
+        targeted_q = [q for q in unanswered_q if q.get("difficulty") == target_difficulty]
+
+        if targeted_q:
+            selected_q_dict = targeted_q[0]
+            save_question(selected_q_dict)
+        elif unanswered_q:
+            selected_q_dict = unanswered_q[0]
+            save_question(selected_q_dict)
+        else:
+            # If all items answered, synthesize a guaranteed new scaffolded item
+            selected_q_dict = generate_adaptive_question(
+                concept_name=selected_concept["name"],
+                concept_id=c_id,
+                difficulty=1,
+                p_known=current_p,
+                topic_name=topic_name,
+                concept_desc=selected_concept.get("description"),
+                recent_attempts=recent_concept_attempts,
+                previous_questions=prev_questions,
+                last_wrong_question=last_wrong_question,
+                last_correct_answer=last_correct_answer,
+            )
+            if selected_q_dict:
+                QUESTIONS_LIST.append(selected_q_dict)
+                save_question(selected_q_dict)
+            is_generated = True
 
     question_payload = None
     if selected_q_dict:
@@ -560,6 +645,7 @@ async def get_next_concept(session_id: str) -> NextConceptResponse:
             "p_known": round(current_p, 4),
             "needs_self_rating": needs_self_rating,
             "question_id": question_payload.id if question_payload else None,
+            "generated": is_generated,
         },
         flagged=needs_self_rating,
     )
