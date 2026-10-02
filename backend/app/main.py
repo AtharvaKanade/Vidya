@@ -172,18 +172,28 @@ def send_otp_email_notification(email: str, name: str, otp_code: str) -> bool:
             msg["To"] = email
 
             port = int(smtp_port.strip())
-            with smtplib.SMTP(smtp_host.strip(), port, timeout=12) as server:
-                server.starttls()
-                server.login(smtp_user.strip(), smtp_pass.strip())
-                server.send_message(msg)
+            host = smtp_host.strip()
+            # Port 465 uses SSL from the initial connection, 587 uses STARTTLS
+            if port == 465:
+                with smtplib.SMTP_SSL(host, port, timeout=10) as server:
+                    server.login(smtp_user.strip(), smtp_pass.strip())
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(host, port, timeout=10) as server:
+                    server.starttls()
+                    server.login(smtp_user.strip(), smtp_pass.strip())
+                    server.send_message(msg)
             print(f"[EMAIL SERVICE SUCCESS] Real OTP email sent to {email}")
             return True
         except Exception as err:
-            print(f"[EMAIL SERVICE ERROR] Failed sending SMTP email to {email}: {err}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to send email via SMTP ({err}). Please check your SMTP settings in .env.",
-            ) from err
+            print(f"[EMAIL SERVICE WARNING] Failed sending SMTP email to {email}: {err}")
+            # If strict enforcement is requested, raise exception; otherwise fallback gracefully so app continues
+            if os.getenv("SMTP_ENFORCE", "false").strip().lower() == "true":
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to send email via SMTP ({err}). Please check your SMTP settings.",
+                ) from err
+            print(f"[EMAIL SERVICE FALLBACK] Continuing with OTP verification in console/debug mode.")
 
     return False
 
