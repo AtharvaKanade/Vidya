@@ -27,7 +27,6 @@ export default function AuthScreen({ onAuthenticated }) {
   // OTP state
   const [pendingEmail, setPendingEmail] = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
-  const [debugOtp, setDebugOtp] = useState(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [infoMessage, setInfoMessage] = useState('');
 
@@ -105,9 +104,8 @@ export default function AuthScreen({ onAuthenticated }) {
           throw new Error('Password must be at least 6 characters.');
         }
 
-        const data = await requestSignupOTP({ name, email, password, confirmPassword });
+        await requestSignupOTP({ name, email, password, confirmPassword });
         setPendingEmail(email);
-        setDebugOtp(data.debug_otp || null);
         setOtpDigits(['', '', '', '', '', '']);
         setInfoMessage(`We've sent a 6-digit OTP code to ${email}. Please check your inbox.`);
         setMode('verify_otp');
@@ -146,10 +144,7 @@ export default function AuthScreen({ onAuthenticated }) {
     setInfoMessage('');
 
     try {
-      const data = await resendSignupOTP(pendingEmail);
-      if (data.debug_otp) {
-        setDebugOtp(data.debug_otp);
-      }
+      await resendSignupOTP(pendingEmail);
       setInfoMessage(`A new 6-digit OTP code has been sent to ${pendingEmail}.`);
       setResendCooldown(30);
     } catch (err) {
@@ -161,13 +156,6 @@ export default function AuthScreen({ onAuthenticated }) {
       setError(errMsg);
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  // Quick auto-fill for testing with debug OTP
-  const handleAutoFillDebugOTP = () => {
-    if (debugOtp && debugOtp.length === 6) {
-      setOtpDigits(debugOtp.split(''));
     }
   };
 
@@ -413,22 +401,7 @@ export default function AuthScreen({ onAuthenticated }) {
                     </div>
                   </div>
 
-                  {/* Debug OTP Quick Fill Chip (if in dev mode) */}
-                  {debugOtp && (
-                    <div className="p-3 rounded-xl border border-[var(--amber-border)] bg-[var(--amber-dim)] flex items-center justify-between text-xs sm:text-sm animate-fade-in">
-                      <div className="flex items-center gap-2 text-[var(--amber)]">
-                        <Sparkle size={16} weight="fill" />
-                        <span>Dev code: <strong className="font-mono tracking-widest text-sm">{debugOtp}</strong></span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleAutoFillDebugOTP}
-                        className="px-2.5 py-1 bg-[var(--bg-surface)] rounded-md border border-[var(--amber-border)] text-[var(--amber)] font-semibold hover:bg-white text-xs cursor-pointer transition-transform active:scale-95"
-                      >
-                        Auto-fill
-                      </button>
-                    </div>
-                  )}
+
 
                   {/* Resend OTP & Change Email options */}
                   <div className="flex items-center justify-between text-xs sm:text-sm pt-2 border-t border-[var(--border-dim)]">
